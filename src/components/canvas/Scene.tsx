@@ -1,7 +1,8 @@
 import React, { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, ContactShadows, Preload } from '@react-three/drei';
+import { ContactShadows, OrbitControls, Preload } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette, ToneMapping } from '@react-three/postprocessing';
+import * as THREE from 'three';
 import { Room } from './Room';
 
 interface SceneProps {
@@ -23,71 +24,124 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => (
       orthographic
       shadows="soft"
       dpr={[1, 2]}
-      camera={{ position: [16, 16, 16], zoom: 43, near: 0.1, far: 1000 }}
+      camera={{
+        position: [16, 16, 16],
+        zoom: 43,
+        near: 0.05,
+        far: 1000,
+      }}
       gl={{
         antialias: true,
         alpha: false,
         powerPreference: 'high-performance',
         stencil: false,
         depth: true,
+        logarithmicDepthBuffer: false,
+      }}
+      onCreated={({ gl }) => {
+        gl.outputColorSpace = THREE.SRGBColorSpace;
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = 1.08;
       }}
     >
       <color attach="background" args={['#050811']} />
+      <fog attach="fog" args={['#050811', 28, 62]} />
 
-      <ambientLight intensity={0.52} color="#c7dcff" />
-      <hemisphereLight intensity={0.30} color="#9ac7ff" groundColor="#090b14" />
+      {/*
+        BASE LIGHT
+        Mantiene visibles los colores del pixel-art sin borrar las
+        sombras que construyen la altura de los muebles.
+      */}
+      <ambientLight intensity={0.42} color="#b9d5ff" />
+      <hemisphereLight
+        intensity={0.26}
+        color="#8ebcff"
+        groundColor="#080a12"
+      />
 
+      {/*
+        KEY LIGHT
+        Una fuente grande y diagonal hace que cada escalón del piso,
+        zócalo, cama y mueble produzca una sombra claramente legible.
+      */}
       <directionalLight
-        position={[12, 18, 10]}
-        intensity={1.45}
-        color="#fff4df"
+        position={[11, 18, 9]}
+        intensity={1.65}
+        color="#fff3df"
         castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.00015}
-        shadow-normalBias={0.018}
+        shadow-mapSize={[4096, 4096]}
+        shadow-bias={-0.00008}
+        shadow-normalBias={0.025}
         shadow-camera-left={-18}
         shadow-camera-right={18}
         shadow-camera-top={18}
         shadow-camera-bottom={-18}
         shadow-camera-near={0.1}
-        shadow-camera-far={60}
+        shadow-camera-far={55}
       />
 
+      {/* Luz azul de la zona de escritorio */}
       <pointLight
-        position={[2.8, 2.6, -4.2]}
-        intensity={1.75}
+        position={[2.8, 3.1, -4.3]}
+        intensity={1.55}
         color="#38bdf8"
-        distance={7}
-        decay={2}
-      />
-      <pointLight
-        position={[-4.2, 2.6, 1.8]}
-        intensity={1.10}
-        color="#a855f7"
-        distance={7}
-        decay={2}
-      />
-      <pointLight
-        position={[5.0, 3.2, 2.8]}
-        intensity={0.65}
-        color="#60a5fa"
         distance={8}
         decay={2}
       />
+
+      {/* Luz morada de la zona lounge */}
       <pointLight
-        position={[-0.4, 2.0, -4.4]}
-        intensity={0.55}
+        position={[-4.2, 2.8, 1.7]}
+        intensity={1.05}
+        color="#a855f7"
+        distance={8}
+        decay={2}
+      />
+
+      {/* Fill frío */}
+      <pointLight
+        position={[5.0, 3.5, 3.0]}
+        intensity={0.58}
+        color="#60a5fa"
+        distance={9}
+        decay={2}
+      />
+
+      {/* Luz cálida de lectura junto a la cama */}
+      <pointLight
+        position={[-1.0, 2.25, -4.65]}
+        intensity={0.78}
         color="#ffb86b"
+        distance={5.5}
+        decay={2}
+      />
+
+      {/*
+        Pools de luz bajos: refuerzan el relieve del suelo sin hacer
+        que parezca un plano completamente uniforme.
+      */}
+      <pointLight
+        position={[-3.5, 0.65, 2.8]}
+        intensity={0.34}
+        color="#6d5cff"
+        distance={5.5}
+        decay={2}
+      />
+      <pointLight
+        position={[4.8, 0.7, -1.0]}
+        intensity={0.28}
+        color="#2dd4bf"
         distance={5}
         decay={2}
       />
 
+      {/* Sombras de contacto para los escalones y muebles bajos. */}
       <ContactShadows
-        position={[0, 0.02, 0]}
-        opacity={0.55}
+        position={[0, 0.10, 0]}
+        opacity={0.68}
         scale={17}
-        blur={2.6}
-        far={6}
+        blur={2.15}
+        far={7}
         resolution={1024}
         frames={1}
       />
@@ -96,7 +150,11 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => (
         <Room onInteractDesk={onInteractDesk} />
       </Suspense>
 
-      {/* Fixed isometric view: room-props.png must not orbit with the camera. */}
+      {/*
+        Perspectiva isométrica fija.
+        No orbitamos porque los sprites del atlas están diseñados para
+        una orientación concreta. Zoom sí está permitido.
+      */}
       <OrbitControls
         enableDamping
         dampingFactor={0.08}
@@ -104,20 +162,30 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => (
         enablePan={false}
         enableZoom
         screenSpacePanning={false}
-        zoomSpeed={0.75}
-        minZoom={34}
-        maxZoom={64}
-        target={[0, 0.8, 0]}
+        zoomSpeed={0.72}
+        minZoom={31}
+        maxZoom={66}
+        minPolarAngle={Math.PI / 4}
+        maxPolarAngle={Math.PI / 4}
+        target={[0, 1.05, 0]}
       />
 
+      {/*
+        Postprocesado muy contenido: el relieve debe venir primero de
+        geometría + sombras, no de Bloom.
+      */}
       <EffectComposer enableNormalPass={false} multisampling={4}>
         <Bloom
           mipmapBlur
-          intensity={0.38}
-          luminanceThreshold={0.84}
-          luminanceSmoothing={0.24}
+          intensity={0.32}
+          luminanceThreshold={0.88}
+          luminanceSmoothing={0.20}
         />
-        <Vignette eskil={false} offset={0.18} darkness={0.46} />
+        <Vignette
+          eskil={false}
+          offset={0.17}
+          darkness={0.42}
+        />
         <ToneMapping />
       </EffectComposer>
 
