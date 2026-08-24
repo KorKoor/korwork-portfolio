@@ -34,8 +34,8 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => {
         shadows="soft"
         dpr={[1, 2]}
         camera={{
-          position: [12, 12, 12],
-          zoom: 55,
+          position: [16, 16, 16],
+          zoom: 43,
           near: 0.1,
           far: 1000,
         }}
@@ -47,192 +47,113 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => {
           depth: true,
         }}
       >
-        {/* =====================================================
-            WORLD BACKGROUND
-        ===================================================== */}
+        <color attach="background" args={['#050811']} />
 
-        <color
-          attach="background"
-          args={['#050811']}
-        />
-
-        {/* =====================================================
-            BASE LIGHT
-            Suave para no destruir los colores del pixel-art.
-        ===================================================== */}
-
-        <ambientLight
-          intensity={0.55}
-          color="#c7dcff"
-        />
-
+        {/* Soft base light preserves the pixel-art palette. */}
+        <ambientLight intensity={0.52} color="#c7dcff" />
         <hemisphereLight
-          intensity={0.28}
+          intensity={0.30}
           color="#9ac7ff"
           groundColor="#090b14"
         />
 
-        {/* =====================================================
-            MAIN MOON / WINDOW LIGHT
-        ===================================================== */}
-
+        {/* Large soft key light creates long readable furniture shadows. */}
         <directionalLight
-          position={[8, 16, 10]}
-          intensity={1.35}
+          position={[12, 18, 10]}
+          intensity={1.45}
           color="#fff4df"
           castShadow
           shadow-mapSize={[2048, 2048]}
           shadow-bias={-0.00015}
-          shadow-normalBias={0.015}
-          shadow-camera-left={-12}
-          shadow-camera-right={12}
-          shadow-camera-top={12}
-          shadow-camera-bottom={-12}
+          shadow-normalBias={0.018}
+          shadow-camera-left={-18}
+          shadow-camera-right={18}
+          shadow-camera-top={18}
+          shadow-camera-bottom={-18}
           shadow-camera-near={0.1}
-          shadow-camera-far={50}
+          shadow-camera-far={60}
         />
 
-        {/* =====================================================
-            CYAN DESK LIGHT
-        ===================================================== */}
-
+        {/* Cyan desk glow */}
         <pointLight
-          position={[0, 2.8, -3.8]}
-          intensity={1.9}
+          position={[2.8, 2.6, -4.2]}
+          intensity={1.75}
           color="#38bdf8"
-          distance={6}
-          decay={2}
-        />
-
-        {/* =====================================================
-            PURPLE SIDE LIGHT
-        ===================================================== */}
-
-        <pointLight
-          position={[-3.5, 2.5, -0.5]}
-          intensity={1.15}
-          color="#a855f7"
-          distance={6}
-          decay={2}
-        />
-
-        {/* =====================================================
-            SOFT BLUE FILL
-        ===================================================== */}
-
-        <pointLight
-          position={[4, 3, 2]}
-          intensity={0.55}
-          color="#60a5fa"
           distance={7}
           decay={2}
         />
 
-        {/* =====================================================
-            WARM ROOM LIGHT
-        ===================================================== */}
-
+        {/* Purple lounge fill */}
         <pointLight
-          position={[-2.5, 2, -2.5]}
-          intensity={0.45}
+          position={[-4.2, 2.6, 1.8]}
+          intensity={1.10}
+          color="#a855f7"
+          distance={7}
+          decay={2
+        />
+
+        {/* Cool right-side fill */}
+        <pointLight
+          position={[5.0, 3.2, 2.8]}
+          intensity={0.65}
+          color="#60a5fa"
+          distance={8}
+          decay={2}
+        />
+
+        {/* Warm bed / bedside practical light */}
+        <pointLight
+          position={[-0.4, 2.0, -4.4]}
+          intensity={0.55}
           color="#ffb86b"
           distance={5}
           decay={2}
         />
 
-        {/* =====================================================
-            CONTACT SHADOWS
-        ===================================================== */}
-
+        {/* Larger contact footprint for the larger room. */}
         <ContactShadows
-          position={[0, 0.015, 0]}
-          opacity={0.5}
-          scale={14}
-          blur={2.4}
-          far={5}
+          position={[0, 0.02, 0]}
+          opacity={0.55}
+          scale={17}
+          blur={2.6}
+          far={6}
           resolution={1024}
           frames={1}
         />
 
-        {/* =====================================================
-            ROOM
-        ===================================================== */}
-
         <Suspense fallback={null}>
-          <Room
-            onInteractDesk={onInteractDesk}
-          />
+          <Room onInteractDesk={onInteractDesk} />
         </Suspense>
 
-        {/* =====================================================
-            CONTROLLED ISOMETRIC CAMERA
-        ===================================================== */}
-
+        {/*
+          The sprites in room-props.png are authored for a fixed
+          isometric/pixel-art view. Rotation is intentionally disabled:
+          zooming and panning are safe, orbiting is not.
+        */}
         <OrbitControls
           enableDamping
           dampingFactor={0.08}
-
-          /*
-           * IMPORTANT:
-           *
-           * The room uses pixel-art sprites drawn from one
-           * specific perspective.
-           *
-           * Therefore the camera must NOT rotate around them.
-           */
           enableRotate={false}
-
           enablePan={false}
           enableZoom
-
           screenSpacePanning={false}
-
           zoomSpeed={0.75}
-
-          /*
-           * Keeps the room framed instead of allowing the
-           * camera to become absurdly close/far.
-           */
-          minZoom={42}
-          maxZoom={78}
-
-          /*
-           * Keep the camera centered slightly above the
-           * actual origin of the room.
-           */
-          target={[0, 0.7, 0]}
+          minZoom={34}
+          maxZoom={64}
+          target={[0, 0.8, 0]}
         />
 
-        {/* =====================================================
-            POST PROCESSING
-        ===================================================== */}
-
-        <EffectComposer
-          enableNormalPass={false}
-          multisampling={4}
-        >
-          {/* Very subtle bloom.
-              We don't want to blur the pixel-art. */}
+        <EffectComposer enableNormalPass={false} multisampling={4}>
+          {/* Kept restrained so the pixel edges stay crisp. */}
           <Bloom
             mipmapBlur
-            intensity={0.42}
-            luminanceThreshold={0.82}
-            luminanceSmoothing={0.25}
+            intensity={0.38}
+            luminanceThreshold={0.84}
+            luminanceSmoothing={0.24}
           />
-
-          {/* Cinematic edges without crushing the room. */}
-          <Vignette
-            eskil={false}
-            offset={0.18}
-            darkness={0.48}
-          />
-
+          <Vignette eskil={false} offset={0.18} darkness={0.46} />
           <ToneMapping />
         </EffectComposer>
-
-        {/* =====================================================
-            PRELOAD
-        ===================================================== */}
 
         <Preload all />
       </Canvas>
