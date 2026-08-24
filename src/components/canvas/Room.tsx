@@ -61,7 +61,6 @@ function Block({
   position,
   size,
   color,
-  y = 0,
   roughness = 0.86,
   metalness = 0,
   emissive,
@@ -70,14 +69,13 @@ function Block({
   position: [number, number, number];
   size: [number, number, number];
   color: string;
-  y?: number;
   roughness?: number;
   metalness?: number;
   emissive?: string;
   emissiveIntensity?: number;
 }) {
   return (
-    <mesh position={[position[0], position[1] + y, position[2]]} castShadow receiveShadow>
+    <mesh position={position} castShadow receiveShadow>
       <boxGeometry args={size} />
       <meshStandardMaterial
         color={color}
@@ -90,103 +88,123 @@ function Block({
   );
 }
 
-function Leg({ offsetX, offsetZ, h = 0.82 }: { offsetX: number; offsetZ: number; h?: number }) {
-  return (
-    <Block
-      position={[offsetX, h / 2, offsetZ]}
-      size={[0.16, h, 0.16]}
-      color="#1c1518"
-      roughness={0.92}
-    />
-  );
+function Leg({ x, z, height = 0.78 }: { x: number; z: number; height?: number }) {
+  return <Block position={[x, height / 2, z]} size={[0.16, height, 0.16]} color="#191216" roughness={0.95} />;
 }
 
-function WoodTable({
-  position,
-  width,
-  depth,
-  height = 0.82,
-}: {
+function WoodTable({ position, width, depth, height = 0.82 }: {
   position: [number, number, number];
   width: number;
   depth: number;
   height?: number;
 }) {
-  const legX = width / 2 - 0.18;
-  const legZ = depth / 2 - 0.18;
+  const lx = width / 2 - 0.20;
+  const lz = depth / 2 - 0.20;
   return (
     <group position={position}>
-      <Block position={[0, height - 0.08, 0]} size={[width + 0.16, 0.18, depth + 0.16]} color="#171114" />
-      <Block position={[0, height, 0]} size={[width, 0.14, depth]} color="#754c31" roughness={0.76} />
-      <Block position={[0, height + 0.075, 0]} size={[width - 0.12, 0.035, depth - 0.12]} color="#9a633c" roughness={0.72} />
-      <Leg offsetX={-legX} offsetZ={-legZ} h={height - 0.04} />
-      <Leg offsetX={legX} offsetZ={-legZ} h={height - 0.04} />
-      <Leg offsetX={-legX} offsetZ={legZ} h={height - 0.04} />
-      <Leg offsetX={legX} offsetZ={legZ} h={height - 0.04} />
+      <Block position={[0, height - 0.08, 0]} size={[width + 0.14, 0.16, depth + 0.14]} color="#151014" />
+      <Block position={[0, height, 0]} size={[width, 0.14, depth]} color="#70472e" roughness={0.78} />
+      <Block position={[0, height + 0.078, 0]} size={[width - 0.12, 0.035, depth - 0.12]} color="#9b623d" roughness={0.70} />
+      <Leg x={-lx} z={-lz} height={height - 0.03} />
+      <Leg x={lx} z={-lz} height={height - 0.03} />
+      <Leg x={-lx} z={lz} height={height - 0.03} />
+      <Leg x={lx} z={lz} height={height - 0.03} />
     </group>
   );
 }
 
-/**
- * A raised (or sunken) "island" for a room zone: base shadow slab, riser,
- * top surface, and a glowing trim line — plus one optional step down to
- * the main floor so it doesn't look like it's floating.
- */
-function Platform({
-  position,
-  width,
-  depth,
-  height = 0.22,
-  topColor,
-  trimColor = '#8ab8ff',
-  trimEmissive = '#4d8dff',
-  trimIntensity = 2.0,
-  step = true,
-  stepSide = 'south', // which edge gets the transition step
-}: {
+function Chair({ position, rotation = 0 }: { position: [number, number, number]; rotation?: number }) {
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      <Block position={[0, 0.48, 0]} size={[0.78, 0.14, 0.78]} color="#754a30" roughness={0.80} />
+      <Block position={[0, 1.02, -0.31]} size={[0.78, 0.95, 0.14]} color="#503323" roughness={0.86} />
+      <Leg x={-0.28} z={-0.28} height={0.46} />
+      <Leg x={0.28} z={-0.28} height={0.46} />
+      <Leg x={-0.28} z={0.28} height={0.46} />
+      <Leg x={0.28} z={0.28} height={0.46} />
+    </group>
+  );
+}
+
+function Rug({ position, width, depth, color = '#25243b' }: { position: [number, number, number]; width: number; depth: number; color?: string }) {
+  return (
+    <group position={position}>
+      <Block position={[0, 0.025, 0]} size={[width + 0.20, 0.07, depth + 0.20]} color="#100f17" roughness={1} />
+      <Block position={[0, 0.065, 0]} size={[width, 0.035, depth]} color={color} roughness={1} />
+      <Block position={[0, 0.088, -depth / 2 + 0.045]} size={[width - 0.08, 0.025, 0.06]} color="#5b4a69" />
+      <Block position={[0, 0.088, depth / 2 - 0.045]} size={[width - 0.08, 0.025, 0.06]} color="#5b4a69" />
+      <Block position={[-width / 2 + 0.045, 0.088, 0]} size={[0.06, 0.025, depth - 0.08]} color="#5b4a69" />
+      <Block position={[width / 2 - 0.045, 0.088, 0]} size={[0.06, 0.025, depth - 0.08]} color="#5b4a69" />
+    </group>
+  );
+}
+
+function Platform({ position, width, depth, height, color }: {
   position: [number, number, number];
   width: number;
   depth: number;
-  height?: number;
-  topColor: string;
-  trimColor?: string;
-  trimEmissive?: string;
-  trimIntensity?: number;
-  step?: boolean;
-  stepSide?: 'north' | 'south' | 'east' | 'west';
+  height: number;
+  color: string;
 }) {
-  const trimT = 0.04;
-  const stepH = height / 2;
-  const stepW = 0.7;
-
-  const stepPos: [number, number, number] =
-    stepSide === 'south'
-      ? [0, stepH / 2, depth / 2 + stepW / 2]
-      : stepSide === 'north'
-      ? [0, stepH / 2, -(depth / 2 + stepW / 2)]
-      : stepSide === 'east'
-      ? [width / 2 + stepW / 2, stepH / 2, 0]
-      : [-(width / 2 + stepW / 2), stepH / 2, 0];
-
-  const stepSize: [number, number, number] =
-    stepSide === 'south' || stepSide === 'north'
-      ? [width * 0.55, stepH, stepW]
-      : [stepW, stepH, depth * 0.55];
-
   return (
     <group position={position}>
-      {/* shadow base, slightly larger, dark */}
-      <Block position={[0, height * 0.35, 0]} size={[width + 0.12, height * 0.7, depth + 0.12]} color="#08070c" roughness={1} />
-      {/* riser */}
-      <Block position={[0, height * 0.62, 0]} size={[width, height * 0.55, depth]} color="#171420" roughness={0.95} />
-      {/* top surface */}
-      <Block position={[0, height + 0.02, 0]} size={[width - 0.05, 0.04, depth - 0.05]} color={topColor} roughness={0.8} />
-      {/* glow trim ring (4 thin strips) */}
-      <Block position={[0, height + 0.045, -depth / 2 + trimT / 2]} size={[width - 0.06, 0.02, trimT]} color={trimColor} emissive={trimEmissive} emissiveIntensity={trimIntensity} />
-      <Block position={[0, height + 0.045, depth / 2 - trimT / 2]} size={[width - 0.06, 0.02, trimT]} color={trimColor} emissive={trimEmissive} emissiveIntensity={trimIntensity} />
-      <Block position={[-width / 2 + trimT / 2, height + 0.045, 0]} size={[trimT, 0.02, depth - 0.06]} color={trimColor} emissive={trimEmissive} emissiveIntensity={trimIntensity} />
-      <Block position={[width / 2 - trimT / 2, height + 0.045, 0]} size={[trimT, 0.02, depth - 0.06]} color={trimColor} emissive={trimEmissive} emissiveIntensity={trimIntensity} />
-      {step && <Block position={stepPos} size={stepSize} color="#211d29" roughness={0.95} />}
+      <Block position={[0, height * 0.35, 0]} size={[width + 0.16, height * 0.70, depth + 0.16]} color="#09080d" roughness={1} />
+      <Block position={[0, height * 0.70, 0]} size={[width, height * 0.60, depth]} color="#18151e" roughness={0.96} />
+      <Block position={[0, height + 0.025, 0]} size={[width - 0.06, 0.05, depth - 0.06]} color={color} roughness={0.82} />
+      <Block position={[0, height + 0.06, -depth / 2]} size={[width, 0.035, 0.05]} color="#5d5065" />
+      <Block position={[0, height + 0.06, depth / 2]} size={[width, 0.035, 0.05]} color="#5d5065" />
+    </group>
+  );
+}
+
+function Staircase({ position, steps = 3 }: { position: [number, number, number]; steps?: number }) {
+  return (
+    <group position={position}>
+      {Array.from({ length: steps }, (_, i) => {
+        const depth = 0.72;
+        const y = (steps - i) * 0.13;
+        const z = -i * depth;
+        return (
+          <Block
+            key={`step-${i}`}
+            position={[0, y / 2, z]}
+            size={[2.25 - i * 0.12, y, depth]}
+            color="#302937"
+            roughness={0.93}
+          />
+        );
+      })}
+      <Block position={[0, 0.025, 0.55]} size={[2.65, 0.05, 0.12]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={1.3} />
+    </group>
+  );
+}
+
+function WindowFrame({ position, width = 2.25, height = 1.70, rotation = [0, 0, 0] as V3 }: {
+  position: [number, number, number];
+  width?: number;
+  height?: number;
+  rotation?: V3;
+}) {
+  return (
+    <group position={position} rotation={rotation}>
+      <Block position={[0, 0, 0]} size={[width + 0.24, height + 0.24, 0.12]} color="#17131b" roughness={0.90} />
+      <Block position={[0, 0, 0.07]} size={[width, height, 0.045]} color="#10203b" roughness={0.45} metalness={0.1} emissive="#183a66" emissiveIntensity={0.35} />
+      <Block position={[0, height / 2 + 0.08, 0.12]} size={[width + 0.18, 0.10, 0.10]} color="#3b2a25" roughness={0.78} />
+      <Block position={[0, -height / 2 - 0.08, 0.12]} size={[width + 0.18, 0.10, 0.10]} color="#3b2a25" roughness={0.78} />
+      <Block position={[-width / 2 - 0.08, 0, 0.12]} size={[0.10, height, 0.10]} color="#3b2a25" roughness={0.78} />
+      <Block position={[width / 2 + 0.08, 0, 0.12]} size={[0.10, height, 0.10]} color="#3b2a25" roughness={0.78} />
+      <Block position={[0, 0, 0.14]} size={[0.045, height, 0.04]} color="#2f4161" />
+      <Block position={[0, 0, 0.14]} size={[width, 0.045, 0.04]} color="#2f4161" />
+    </group>
+  );
+}
+
+function WallPanel({ position, width, height = 1.05, rotation = [0, 0, 0] as V3 }: { position: [number, number, number]; width: number; height?: number; rotation?: V3 }) {
+  return (
+    <group position={position} rotation={rotation}>
+      <Block position={[0, 0, 0]} size={[width, height, 0.07]} color="#121a2b" roughness={0.92} />
+      <Block position={[0, height / 2 - 0.04, 0.055]} size={[width - 0.10, 0.045, 0.025]} color="#2a3b58" />
+      <Block position={[0, -height / 2 + 0.04, 0.055]} size={[width - 0.10, 0.045, 0.025]} color="#2a3b58" />
     </group>
   );
 }
@@ -197,240 +215,206 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
   return (
     <group>
       {/* ============================================================
-          ARCHITECTURE / FLOOR RELIEF
+          LARGER ROOM SHELL — 16.4 x 14.2 world units
       ============================================================ */}
-      <Block position={[0, -0.48, 0]} size={[14.8, 0.72, 12.6]} color="#05070d" roughness={0.98} />
-      <Block position={[0, -0.05, 0]} size={[14.35, 0.20, 12.15]} color="#17131d" roughness={0.98} />
-      <Block position={[0, 0.08, 0]} size={[14.05, 0.12, 11.85]} color="#292331" roughness={0.94} />
+      <Block position={[0, -0.45, 0]} size={[16.8, 0.80, 14.6]} color="#05070d" roughness={1} />
+      <Block position={[0, -0.04, 0]} size={[16.35, 0.18, 14.15]} color="#17131d" roughness={0.98} />
+      <Block position={[0, 0.075, 0]} size={[16.05, 0.12, 13.85]} color="#292331" roughness={0.94} />
 
-      {Array.from({ length: 13 }, (_, i) => (
-        <mesh key={`plank-${i}`} position={[0, 0.16, -5.45 + i * 0.88]} receiveShadow>
-          <boxGeometry args={[13.55, 0.045, 0.035]} />
+      {/* Wood floor planks + cross seams */}
+      {Array.from({ length: 15 }, (_, i) => (
+        <mesh key={`plank-z-${i}`} position={[0, 0.145, -6.55 + i * 0.92]} receiveShadow>
+          <boxGeometry args={[15.75, 0.045, 0.035]} />
           <meshStandardMaterial color={i % 2 ? '#45394a' : '#382f40'} roughness={0.92} />
         </mesh>
       ))}
-      {Array.from({ length: 12 }, (_, i) => (
-        <mesh key={`seam-${i}`} position={[-6.0 + i * 1.05, 0.175, 0]} receiveShadow>
-          <boxGeometry args={[0.025, 0.025, 11.25]} />
+      {Array.from({ length: 15 }, (_, i) => (
+        <mesh key={`plank-x-${i}`} position={[-6.8 + i * 0.97, 0.165, 0]} receiveShadow>
+          <boxGeometry args={[0.025, 0.025, 13.45]} />
           <meshStandardMaterial color="#1d1823" roughness={1} />
         </mesh>
       ))}
 
-      {/* Raised perimeter */}
-      <Block position={[0, 0.25, -5.72]} size={[13.85, 0.16, 0.28]} color="#4a4051" />
-      <Block position={[-6.72, 0.25, 0]} size={[0.28, 0.16, 11.55]} color="#4a4051" />
-      <Block position={[6.72, 0.25, 0]} size={[0.28, 0.16, 11.55]} color="#4a4051" />
-      <Block position={[0, 0.25, 5.72]} size={[13.85, 0.16, 0.28]} color="#4a4051" />
+      {/* Thick perimeter relief */}
+      <Block position={[0, 0.27, -6.75]} size={[16.15, 0.18, 0.32]} color="#4a4051" />
+      <Block position={[-7.70, 0.27, 0]} size={[0.32, 0.18, 13.75]} color="#4a4051" />
+      <Block position={[7.70, 0.27, 0]} size={[0.32, 0.18, 13.75]} color="#4a4051" />
+      <Block position={[0, 0.27, 6.75]} size={[16.15, 0.18, 0.32]} color="#4a4051" />
+      <Block position={[0, 0.34, 6.53]} size={[15.25, 0.04, 0.05]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={1.45} />
 
-      {/* Recessed neon trim (perimeter, base floor level) */}
-      <Block position={[0, 0.34, -5.48]} size={[12.7, 0.035, 0.045]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={1.6} />
-      <Block position={[-6.48, 0.34, 0]} size={[0.045, 0.035, 11.0]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={1.6} />
-      <Block position={[0, 0.34, 5.48]} size={[12.7, 0.035, 0.045]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={1.6} />
-      <Block position={[6.48, 0.34, 0]} size={[0.045, 0.035, 11.0]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={1.6} />
-
-      {/* ============================================================ WALLS
+      {/* ============================================================
+          WALLS + ARCHITECTURAL DETAILS
       ============================================================ */}
-      <Block position={[0, 3.35, -6.05]} size={[14.25, 6.7, 0.28]} color="#0a1222" roughness={0.98} />
-      <Block position={[-6.05, 3.35, 0]} size={[0.28, 6.7, 11.9]} color="#0e1729" roughness={0.98} />
-      {/* zócalo (baseboard) */}
-      <Block position={[0, 0.42, -5.83]} size={[13.85, 0.30, 0.26]} color="#04060c" roughness={1} />
-      <Block position={[-5.83, 0.42, 0]} size={[0.26, 0.30, 11.55]} color="#04060c" roughness={1} />
-      {/* mid panel accent */}
-      <Block position={[0, 2.6, -5.85]} size={[13.6, 0.9, 0.06]} color="#111d34" roughness={0.9} />
-      <Block position={[-5.85, 2.6, 0]} size={[0.06, 0.9, 11.3]} color="#152540" roughness={0.9} />
-      {/* cornisa (crown trim) */}
-      <Block position={[0, 6.63, -5.88]} size={[14.45, 0.22, 0.42]} color="#060910" roughness={0.96} />
-      <Block position={[-5.88, 6.63, 0]} size={[0.42, 0.22, 12.1]} color="#060910" roughness={0.96} />
+      <Block position={[0, 3.55, -7.05]} size={[16.35, 7.10, 0.30]} color="#0a1222" roughness={0.98} />
+      <Block position={[-7.05, 3.55, 0]} size={[0.30, 7.10, 13.70]} color="#0e1729" roughness={0.98} />
+      {/* Low front wall: enough to host the shelf while keeping the room readable from isometric view. */}
+      <Block position={[0, 0.88, 6.95]} size={[16.25, 1.76, 0.26]} color="#0b1020" roughness={0.98} />
+      <Block position={[0, 1.82, 6.80]} size={[15.90, 0.12, 0.34]} color="#1c263d" roughness={0.9} />
+      <Block position={[0, 0.40, -6.82]} size={[15.95, 0.32, 0.26]} color="#04060c" roughness={1} />
+      <Block position={[-6.82, 0.40, 0]} size={[0.26, 0.32, 13.25]} color="#04060c" roughness={1} />
+      <Block position={[0, 6.99, -6.85]} size={[16.55, 0.24, 0.42]} color="#060910" roughness={0.96} />
+      <Block position={[-6.86, 6.99, 0]} size={[0.42, 0.24, 13.95]} color="#060910" roughness={0.96} />
+      <Block position={[0, 2.55, -6.86]} size={[15.55, 0.06, 0.05]} color="#1d3556" emissive="#102746" emissiveIntensity={0.35} />
+      <Block position={[-6.86, 2.55, 0]} size={[0.05, 0.06, 13.0]} color="#1d3556" emissive="#102746" emissiveIntensity={0.35} />
 
-      {[-4.7, -1.5, 1.7, 4.9].map((x) => (
-        <Block key={`wall-strip-${x}`} position={[x, 3.35, -5.84]} size={[0.055, 5.85, 0.035]} color="#1b2b45" roughness={0.9} />
+      {[-5.8, -2.9, 0, 2.9, 5.8].map((x) => (
+        <Block key={`panel-back-${x}`} position={[x, 3.55, -6.86]} size={[0.055, 5.90, 0.035]} color="#1b2b45" roughness={0.90} />
       ))}
-      {[-4.2, -1.2, 1.8, 4.8].map((z) => (
-        <Block key={`left-strip-${z}`} position={[-5.84, 3.35, z]} size={[0.035, 5.85, 0.055]} color="#20314d" roughness={0.9} />
+      {[-4.8, -1.6, 1.6, 4.8].map((z) => (
+        <Block key={`panel-left-${z}`} position={[-6.86, 3.55, z]} size={[0.035, 5.90, 0.055]} color="#20314d" roughness={0.90} />
       ))}
 
-      {/* ============================================================ BED ZONE (raised warm platform)
+      {/* ============================================================
+          WINDOWS — real recessed geometry + atlas skyline inside
       ============================================================ */}
-      <Platform
-        position={[-3.55, 0, -3.15]}
-        width={4.85}
-        depth={3.95}
-        height={0.20}
-        topColor="#241a1e"
-        trimColor="#ffb27a"
-        trimEmissive="#ff8a3d"
-        trimIntensity={1.8}
-        stepSide="south"
-      />
-      <group position={[-3.55, 0.20, -3.25]}>
-        <Block position={[0, 0.20, 0]} size={[4.25, 0.38, 3.55]} color="#08090f" roughness={1} />
-        <Block position={[0, 0.43, 0]} size={[4.02, 0.20, 3.32]} color="#3a2527" roughness={0.86} />
-        <Block position={[0, 0.56, 0]} size={[3.82, 0.06, 3.12]} color="#7c5135" roughness={0.78} />
-        <Block position={[0, 1.18, -1.57]} size={[3.90, 1.25, 0.28]} color="#392528" roughness={0.9} />
-        <Block position={[0, 1.78, -1.73]} size={[4.08, 0.18, 0.38]} color="#845839" roughness={0.74} />
-        <Block position={[0, 1.62, -1.86]} size={[3.72, 0.04, 0.035]} color="#bd7c4c" roughness={0.72} />
-        <RoomSprite position={[0, 0.62, 0.02]} crop={C.bed} height={2.85} rotation={FLOOR_ROTATION} depthOffset={0.08} />
-      </group>
+      <WindowFrame position={[-3.45, 4.85, -6.87]} width={2.35} height={1.72} />
+      <RoomSprite position={[-3.45, 4.85, -6.68]} crop={C.window} height={1.55} rotation={WALL_ROTATION} depthOffset={0.01} toneMapped />
+      <WindowFrame position={[1.15, 4.82, -6.87]} width={2.45} height={1.80} />
+      <RoomSprite position={[1.15, 4.82, -6.68]} crop={C.window} height={1.62} rotation={WALL_ROTATION} depthOffset={0.01} toneMapped />
+      <WindowFrame position={[5.25, 3.95, -6.87]} width={1.65} height={1.55} />
+      <RoomSprite position={[5.25, 3.95, -6.68]} crop={C.window} height={1.38} rotation={WALL_ROTATION} depthOffset={0.01} toneMapped />
+      <WindowFrame position={[-6.87, 4.55, 2.85]} width={1.85} height={1.65} rotation={LEFT_WALL_ROTATION} />
+      <RoomSprite position={[-6.68, 4.55, 2.85]} crop={C.window} height={1.46} rotation={LEFT_WALL_ROTATION} depthOffset={0.01} />
 
-      {/* Bedside chest (sits directly on the platform) */}
-      <group position={[-0.35, 0.20, -5.02]}>
-        <Block position={[0, 0.48, 0]} size={[1.05, 0.86, 0.88]} color="#2d1d1d" roughness={0.92} />
-        <Block position={[0, 0.96, 0]} size={[1.18, 0.12, 0.98]} color="#795039" roughness={0.76} />
-        <Block position={[0, 0.56, 0.45]} size={[0.74, 0.035, 0.025]} color="#9d6841" />
-        <RoomSprite position={[0, 1.02, 0.02]} crop={C.coffee} height={0.30} rotation={FLOOR_ROTATION} />
-      </group>
-
-      {/* ============================================================ DESK ZONE (raised "tech" platform, tallest)
+      {/* ============================================================
+          UPPER BEDROOM / OFFICE PLATFORM
       ============================================================ */}
-      <Platform
-        position={[2.55, 0, -4.48]}
-        width={6.05}
-        depth={1.95}
-        height={0.30}
-        topColor="#1a1420"
-        trimColor="#8ab8ff"
-        trimEmissive="#4d8dff"
-        trimIntensity={2.4}
-        stepSide="south"
-      />
-      <group position={[0, 0.30, 0]} onClick={interactDesk}>
-        <WoodTable position={[2.55, 0, -4.48]} width={5.55} depth={1.28} height={1.05} />
-        <Block position={[2.55, 0.60, -4.47]} size={[4.75, 0.86, 0.12]} color="#2a1a1a" roughness={0.92} />
-        <Block position={[2.55, 0.88, -4.53]} size={[4.55, 0.045, 0.05]} color="#9d633e" roughness={0.72} />
-        <RoomSprite position={[1.10, 1.28, -4.98]} crop={C.laptop} height={1.02} depthOffset={0.04} />
-        <RoomSprite position={[2.40, 1.34, -4.98]} crop={C.monitor} height={1.38} depthOffset={0.05} />
-        <RoomSprite position={[3.72, 1.26, -4.97]} crop={C.sideMonitor} height={1.24} depthOffset={0.05} />
-        <RoomSprite position={[1.65, 1.09, -4.22]} crop={C.keyboard} height={0.36} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[2.95, 1.09, -4.18]} crop={C.mousePad} height={0.30} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[3.56, 1.09, -4.16]} crop={C.mouse} height={0.22} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[4.20, 1.12, -4.18]} crop={C.phone} height={0.28} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[4.55, 1.20, -4.16]} crop={C.camera} height={0.24} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[0.65, 1.15, -4.12]} crop={C.pencilCup} height={0.38} />
-        <RoomSprite position={[4.80, 1.55, -4.30]} crop={C.deskLamp} height={1.05} depthOffset={0.04} />
+      <Platform position={[-0.15, 0, -3.75]} width={13.55} depth={4.65} height={0.44} color="#1c1825" />
+      <Rug position={[-3.55, 0.49, -3.80]} width={4.95} depth={3.75} color="#24223a" />
+
+      {/* BED: against the back wall, with the headboard aligned to it */}
+      <group position={[-3.55, 0.50, -3.95]}>
+        <Block position={[0, 0.22, 0]} size={[4.45, 0.38, 3.35]} color="#08090f" roughness={1} />
+        <Block position={[0, 0.46, 0]} size={[4.20, 0.20, 3.12]} color="#3a2527" roughness={0.86} />
+        <Block position={[0, 0.59, 0]} size={[4.00, 0.06, 2.94]} color="#7c5135" roughness={0.78} />
+        <Block position={[0, 1.20, -1.47]} size={[4.08, 1.24, 0.28]} color="#392528" roughness={0.90} />
+        <Block position={[0, 1.80, -1.63]} size={[4.28, 0.18, 0.38]} color="#845839" roughness={0.74} />
+        <Block position={[0, 1.64, -1.76]} size={[3.90, 0.04, 0.035]} color="#bd7c4c" roughness={0.72} />
+        <RoomSprite position={[0, 0.64, 0.03]} crop={C.bed} height={2.92} rotation={FLOOR_ROTATION} depthOffset={0.08} />
+        <RoomSprite position={[1.82, 0.72, 0.15]} crop={C.sleepingCats} height={0.72} rotation={FLOOR_ROTATION} depthOffset={0.04} />
       </group>
 
-      {/* ============================================================ LOUNGE ZONE (sunken platform, cool trim)
+      {/* Bedside table */}
+      <group position={[-0.72, 0.50, -5.88]}>
+        <Block position={[0, 0.46, 0]} size={[1.05, 0.82, 0.88]} color="#2d1d1d" roughness={0.92} />
+        <Block position={[0, 0.93, 0]} size={[1.18, 0.12, 0.98]} color="#795039" roughness={0.76} />
+        <RoomSprite position={[0, 1.02, 0.03]} crop={C.coffee} height={0.30} rotation={FLOOR_ROTATION} />
+      </group>
+
+      {/* ============================================================
+          DESK / TECH AREA — isolated from bed
       ============================================================ */}
-      <Platform
-        position={[-3.95, 0, 2.75]}
-        width={4.65}
-        depth={2.60}
-        height={0.14}
-        topColor="#151420"
-        trimColor="#c084fc"
-        trimEmissive="#a855f7"
-        trimIntensity={2.0}
-        stepSide="east"
-      />
-      <group position={[-3.95, 0.14, 2.55]}>
-        <Block position={[0, 0.62, 0]} size={[3.70, 1.12, 1.48]} color="#20202e" roughness={0.98} />
-        <Block position={[0, 1.24, -0.47]} size={[3.72, 0.84, 0.46]} color="#2c2b3d" roughness={0.96} />
-        <Block position={[-1.62, 0.66, 0]} size={[0.22, 1.26, 1.70]} color="#14141f" />
-        <Block position={[1.62, 0.66, 0]} size={[0.22, 1.26, 1.70]} color="#14141f" />
-        <Block position={[0, 0.12, 0.02]} size={[3.95, 0.16, 1.72]} color="#11111a" />
-        <RoomSprite position={[0, 1.43, -0.68]} crop={C.couchCats} height={1.00} />
+      <group onClick={interactDesk}>
+        <WoodTable position={[2.75, 1.48, -4.82]} width={5.20} depth={1.28} height={0.98} />
+        <Block position={[2.75, 1.04, -4.82]} size={[4.50, 0.70, 0.12]} color="#2a1a1a" roughness={0.92} />
+        <RoomSprite position={[1.45, 2.23, -5.31]} crop={C.laptop} height={0.95} depthOffset={0.04} />
+        <RoomSprite position={[2.72, 2.28, -5.31]} crop={C.monitor} height={1.30} depthOffset={0.05} />
+        <RoomSprite position={[4.00, 2.18, -5.30]} crop={C.sideMonitor} height={1.16} depthOffset={0.05} />
+        <RoomSprite position={[1.88, 2.04, -4.17]} crop={C.keyboard} height={0.34} rotation={FLOOR_ROTATION} />
+        <RoomSprite position={[3.05, 2.04, -4.14]} crop={C.mousePad} height={0.28} rotation={FLOOR_ROTATION} />
+        <RoomSprite position={[3.58, 2.04, -4.12]} crop={C.mouse} height={0.20} rotation={FLOOR_ROTATION} />
+        <RoomSprite position={[4.18, 2.08, -4.12]} crop={C.phone} height={0.26} rotation={FLOOR_ROTATION} />
+        <RoomSprite position={[4.58, 2.15, -4.10]} crop={C.camera} height={0.22} rotation={FLOOR_ROTATION} />
+        <RoomSprite position={[0.95, 2.10, -4.08]} crop={C.pencilCup} height={0.34} />
+        <RoomSprite position={[4.82, 2.48, -4.35]} crop={C.deskLamp} height={0.96} depthOffset={0.04} />
       </group>
-      <Block position={[-3.95, 0.71, 2.55]} size={[4.35, 0.08, 2.12]} color="#171521" roughness={1} />
-      <Block position={[-3.95, 0.76, 2.55]} size={[4.10, 0.035, 1.88]} color="#3a3043" roughness={1} />
-
-      <group position={[0, 0.14, 0]}>
-        <WoodTable position={[-0.85, 0, 2.52]} width={2.60} depth={1.48} height={0.78} />
-        <RoomSprite position={[-1.45, 0.89, 2.52]} crop={C.burger} height={0.28} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[-0.80, 0.89, 2.52]} crop={C.pizza} height={0.27} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[-0.18, 0.89, 2.45]} crop={C.bowl} height={0.28} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[-0.95, 0.90, 2.93]} crop={C.drink} height={0.30} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[-0.35, 0.90, 2.95]} crop={C.glass} height={0.28} rotation={FLOOR_ROTATION} />
+      <group position={[2.75, 1.00, -3.15]}>
+        <Block position={[0, 0.62, 0]} size={[1.25, 0.14, 1.12]} color="#4c3528" />
+        <Block position={[0, 1.20, -0.38]} size={[1.05, 1.18, 0.16]} color="#27212a" />
+        <Leg x={-0.43} z={-0.40} height={0.54} />
+        <Leg x={0.43} z={-0.40} height={0.54} />
+        <Leg x={-0.43} z={0.40} height={0.54} />
+        <Leg x={0.43} z={0.40} height={0.54} />
       </group>
 
-      {/* ============================================================ HOBBY / DINING ZONE (mid wood platform)
+      {/* ============================================================
+          STAIRS — transition from raised bedroom/office to dining
+      ============================================================ */
+      <Staircase position={[0.45, 0.44, -0.55]} steps={4} />
+
+      {/* ============================================================
+          LOUNGE — bottom-left corner, sofa horizontal and against wall
       ============================================================ */}
-      <Platform
-        position={[3.25, 0, 2.85]}
-        width={3.75}
-        depth={3.40}
-        height={0.17}
-        topColor="#251a16"
-        trimColor="#ffd08a"
-        trimEmissive="#f5a63c"
-        trimIntensity={1.6}
-        stepSide="west"
-      />
-      <group position={[0, 0.17, 0]}>
-        <WoodTable position={[3.25, 0, 2.62]} width={3.05} depth={1.82} height={0.84} />
-        <Block position={[3.25, 0.47, 3.36]} size={[2.65, 0.72, 0.12]} color="#25191a" />
-        <RoomSprite position={[2.35, 0.93, 2.35]} crop={C.ideas} height={0.44} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[3.10, 0.93, 2.30]} crop={C.cameraLarge} height={0.42} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[3.90, 0.93, 2.30]} crop={C.books} height={0.40} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[3.45, 0.93, 2.92]} crop={C.globe} height={0.32} rotation={FLOOR_ROTATION} />
+      <Rug position={[-4.55, 0.16, 3.95]} width={5.25} depth={3.05} color="#26233b" />
+      <group position={[-4.55, 0.17, 4.62]}>
+        <Block position={[0, 0.58, 0]} size={[4.45, 1.08, 1.34]} color="#20202e" roughness={0.98} />
+        <Block position={[0, 1.18, -0.46]} size={[4.48, 0.82, 0.42]} color="#2d2b3d" roughness={0.96} />
+        <Block position={[-2.10, 0.64, 0]} size={[0.25, 1.28, 1.52]} color="#14141f" />
+        <Block position={[2.10, 0.64, 0]} size={[0.25, 1.28, 1.52]} color="#14141f" />
+        <Block position={[0, 0.10, 0.02]} size={[4.68, 0.16, 1.58]} color="#11111a" />
+        <RoomSprite position={[0, 1.36, -0.66]} crop={C.couchCats} height={0.96} />
+      </group>
+      <WoodTable position={[-4.45, 0.20, 2.85]} width={2.75} depth={1.55} height={0.78} />
+      <RoomSprite position={[-5.25, 1.07, 2.84]} crop={C.burger} height={0.28} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[-4.52, 1.07, 2.84]} crop={C.pizza} height={0.27} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[-3.85, 1.07, 2.72]} crop={C.bowl} height={0.28} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[-4.88, 1.08, 3.27]} crop={C.drink} height={0.30} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[-4.30, 1.08, 3.28]} crop={C.glass} height={0.28} rotation={FLOOR_ROTATION} />
 
-        <group position={[3.25, 0, 4.08]}>
-          <Block position={[0, 0.55, 0]} size={[1.18, 0.18, 1.10]} color="#533624" roughness={0.8} />
-          <Block position={[0, 1.18, 0.42]} size={[1.10, 1.20, 0.18]} color="#2b2228" roughness={0.94} />
-          <Leg offsetX={-0.42} offsetZ={-0.38} h={0.50} />
-          <Leg offsetX={0.42} offsetZ={-0.38} h={0.50} />
-          <Leg offsetX={-0.42} offsetZ={0.38} h={0.50} />
-          <Leg offsetX={0.42} offsetZ={0.38} h={0.50} />
-        </group>
+      {/* ============================================================
+          DINING — bottom-right corner with four chairs and props
+      ============================================================ */
+      <Rug position={[3.65, 0.16, 3.55]} width={5.15} depth={3.95} color="#29263d" />
+      <WoodTable position={[3.65, 0.23, 3.48]} width={3.25} depth={1.95} height={0.86} />
+      <Chair position={[3.65, 0.24, 2.12]} rotation={0} />
+      <Chair position={[3.65, 0.24, 4.84]} rotation={Math.PI} />
+      <Chair position={[1.55, 0.24, 3.48]} rotation={Math.PI / 2} />
+      <Chair position={[5.75, 0.24, 3.48]} rotation={-Math.PI / 2} />
+      <RoomSprite position={[2.72, 1.17, 3.42]} crop={C.pizza} height={0.34} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[3.55, 1.17, 3.42]} crop={C.bowl} height={0.31} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[4.32, 1.17, 3.40]} crop={C.burger} height={0.30} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[3.00, 1.18, 4.02]} crop={C.drink} height={0.32} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[4.05, 1.18, 4.00]} crop={C.glass} height={0.29} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[3.65, 1.20, 2.96]} crop={C.coffee} height={0.30} rotation={FLOOR_ROTATION} />
+
+      {/* ============================================================
+          FRONT-WALL SHELF — mounted to the lower/front wall
+      ============================================================ */}
+      <group position={[4.45, 1.58, 6.72]}>
+        <Block position={[0, 0, 0]} size={[3.35, 0.13, 0.46]} color="#5f3d2b" roughness={0.76} />
+        <Block position={[0, 0.48, 0]} size={[3.10, 0.08, 0.36]} color="#8a5738" roughness={0.72} />
+        <Block position={[-1.40, 0.23, 0]} size={[0.10, 0.48, 0.32]} color="#38241e" />
+        <Block position={[1.40, 0.23, 0]} size={[0.10, 0.48, 0.32]} color="#38241e" />
+        <RoomSprite position={[-1.02, 0.22, -0.25]} crop={C.books} height={0.46} rotation={WALL_ROTATION} />
+        <RoomSprite position={[0.00, 0.22, -0.25]} crop={C.console} height={0.32} rotation={WALL_ROTATION} />
+        <RoomSprite position={[0.88, 0.28, -0.25]} crop={C.photo} height={0.34} rotation={WALL_ROTATION} />
+        <RoomSprite position={[1.45, 0.54, -0.25]} crop={C.plantLarge} height={0.82} rotation={WALL_ROTATION} />
       </group>
 
-      {/* ============================================================ STORAGE / MEDIA ZONE (small raised nook)
-      ============================================================ */}
-      <Platform
-        position={[5.10, 0, 1.25]}
-        width={2.05}
-        depth={1.55}
-        height={0.12}
-        topColor="#1b1416"
-        trimColor="#8ab8ff"
-        trimEmissive="#4d8dff"
-        trimIntensity={1.6}
-        stepSide="west"
-      />
-      <group position={[5.10, 0.12, 1.25]}>
-        <Block position={[0, 0.90, 0]} size={[1.36, 1.80, 0.90]} color="#21171a" roughness={0.94} />
-        <Block position={[0, 0.34, -0.47]} size={[1.52, 0.10, 1.04]} color="#754b32" roughness={0.78} />
-        <Block position={[0, 0.92, -0.47]} size={[1.52, 0.10, 1.04]} color="#754b32" roughness={0.78} />
-        <Block position={[0, 1.50, -0.47]} size={[1.52, 0.10, 1.04]} color="#754b32" roughness={0.78} />
-        <RoomSprite position={[0, 1.86, -0.02]} crop={C.plantLarge} height={0.90} />
-        <RoomSprite position={[-0.35, 0.68, -0.51]} crop={C.books} height={0.44} />
-        <RoomSprite position={[0.34, 0.68, -0.51]} crop={C.console} height={0.32} />
-        <RoomSprite position={[0.25, 1.26, -0.51]} crop={C.photo} height={0.35} />
+      {/* ============================================================
+          ENTRY / PERSONAL ITEMS — grouped instead of scattered
+      ============================================================ */
+      <group position={[-6.15, 0.18, 0.45]}>
+        <RoomSprite position={[0, 0.05, 0]} crop={C.skateboard} height={1.62} depthOffset={0.02} />
+        <RoomSprite position={[0.78, 0.05, 0.20]} crop={C.backpack} height={0.88} />
       </group>
 
-      {/* Parked personal items (ground level, breaks up empty floor) */}
-      <RoomSprite position={[-5.12, 0.30, 2.55]} crop={C.skateboard} height={1.72} depthOffset={0.02} />
-      <RoomSprite position={[-4.78, 0.30, 1.42]} crop={C.backpack} height={0.92} />
-
-      {/* Small personal notes / cats grouped on the front activity strip */}
-      <RoomSprite position={[1.55, 0.42, 4.86]} crop={C.pinkNote} height={0.52} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[2.25, 0.42, 4.86]} crop={C.purpleNote} height={0.50} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[2.90, 0.42, 4.86]} crop={C.greenNote} height={0.48} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[4.10, 0.42, 4.75]} crop={C.sleepingCats} height={0.72} rotation={FLOOR_ROTATION} />
-
-      {/* ============================================================ WALL DECORATION
+      {/* ============================================================
+          WALL DECOR — organized into visual clusters
       ============================================================ */}
-      <RoomSprite position={[-3.80, 4.72, -5.84]} crop={C.board} height={1.72} rotation={WALL_ROTATION} />
-      <RoomSprite position={[-1.10, 4.55, -5.84]} crop={C.window} height={1.48} rotation={WALL_ROTATION} />
-      <RoomSprite position={[0.75, 4.48, -5.84]} crop={C.poster} height={1.26} rotation={WALL_ROTATION} />
-      <RoomSprite position={[2.20, 4.35, -5.82]} crop={C.plant} height={1.54} rotation={WALL_ROTATION} />
-      <RoomSprite position={[4.28, 3.72, -5.80]} crop={C.guitar} height={1.86} rotation={WALL_ROTATION} />
-      <RoomSprite position={[3.72, 2.70, -5.79]} crop={C.wallShelf} height={0.86} rotation={WALL_ROTATION} />
-      <RoomSprite position={[2.92, 2.05, -5.78]} crop={C.todo} height={0.82} rotation={WALL_ROTATION} />
-      <RoomSprite position={[4.58, 2.00, -5.78]} crop={C.map} height={0.92} rotation={WALL_ROTATION} />
+      <WallPanel position={[-4.90, 3.30, -6.88]} width={2.65} height={1.15} />
+      <RoomSprite position={[-4.90, 3.38, -6.70]} crop={C.board} height={1.48} rotation={WALL_ROTATION} />
+      <RoomSprite position={[-1.15, 5.95, -6.70]} crop={C.poster} height={1.22} rotation={WALL_ROTATION} />
+      <RoomSprite position={[4.62, 5.25, -6.70]} crop={C.board} height={1.52} rotation={WALL_ROTATION} />
+      <RoomSprite position={[5.85, 4.25, -6.70]} crop={C.guitar} height={1.72} rotation={WALL_ROTATION} />
+      <RoomSprite position={[6.10, 2.98, -6.70]} crop={C.todo} height={0.78} rotation={WALL_ROTATION} />
+      <RoomSprite position={[4.82, 2.82, -6.70]} crop={C.map} height={0.86} rotation={WALL_ROTATION} />
+      <RoomSprite position={[0.10, 2.92, -6.70]} crop={C.plant} height={1.38} rotation={WALL_ROTATION} />
+      <RoomSprite position={[-6.70, 2.85, -0.70]} crop={C.cityPrint} height={0.72} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
+      <RoomSprite position={[-6.70, 2.15, 0.90]} crop={C.pinkNote} height={0.46} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
+      <RoomSprite position={[-6.70, 1.62, 2.00]} crop={C.purpleNote} height={0.44} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
 
-      <RoomSprite position={[-5.80, 4.25, -1.35]} crop={C.board} height={1.30} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
-      <RoomSprite position={[-5.79, 3.10, 1.35]} crop={C.cityPrint} height={0.68} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
-      <RoomSprite position={[-5.78, 2.65, 2.45]} crop={C.pinkNote} height={0.50} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
-
-      <pointLight position={[-0.35, 1.85, -4.55]} intensity={0.55} color="#ffad62" distance={3.4} decay={2} />
-      <pointLight position={[4.65, 2.00, -4.35]} intensity={0.85} color="#38bdf8" distance={3.6} decay={2} />
-      <pointLight position={[-4.65, 2.10, 2.20]} intensity={0.45} color="#a855f7" distance={3.4} decay={2} />
-      <pointLight position={[3.25, 1.30, 2.85]} intensity={0.35} color="#f5a63c" distance={3.0} decay={2} />
+      {/* Small lights integrated into zones */}
+      <pointLight position={[-3.55, 2.35, -4.90]} intensity={0.48} color="#ffad62" distance={3.6} decay={2} />
+      <pointLight position={[2.70, 2.20, -4.30]} intensity={0.72} color="#38bdf8" distance={4.0} decay={2} />
+      <pointLight position={[-4.55, 1.90, 3.55]} intensity={0.38} color="#a855f7" distance={3.6} decay={2} />
+      <pointLight position={[3.65, 1.60, 3.48]} intensity={0.46} color="#f5a63c" distance={3.8} decay={2} />
+      <pointLight position={[4.45, 1.65, 6.15]} intensity={0.34} color="#60a5fa" distance={3.0} decay={2} />
 
       <Player
         onInteractDesk={onInteractDesk}
-        initialPosition={[0, 0.19, 0.45]}
-        deskPosition={[2.55, -4.48]}
+        initialPosition={[0.25, 0.63, 0.85]}
+        deskPosition={[2.75, -4.82]}
         speed={2.55}
       />
     </group>
