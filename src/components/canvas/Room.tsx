@@ -90,26 +90,39 @@ function Block({
   );
 }
 
-function Leg({ x, z, h = 0.82 }: { x: number; z: number; h?: number }) {
-  return <Block position={[x, h / 2, z]} size={[0.16, h, 0.16]} color="#1c1518" roughness={0.92} />;
+function Leg({ offsetX, offsetZ, h = 0.82 }: { offsetX: number; offsetZ: number; h?: number }) {
+  return (
+    <Block
+      position={[offsetX, h / 2, offsetZ]}
+      size={[0.16, h, 0.16]}
+      color="#1c1518"
+      roughness={0.92}
+    />
+  );
 }
 
-function WoodTable({ position, width, depth, height = 0.82 }: {
+function WoodTable({
+  position,
+  width,
+  depth,
+  height = 0.82,
+}: {
   position: [number, number, number];
   width: number;
   depth: number;
   height?: number;
 }) {
-  const [x, , z] = position;
+  const legX = width / 2 - 0.18;
+  const legZ = depth / 2 - 0.18;
   return (
     <group position={position}>
       <Block position={[0, height - 0.08, 0]} size={[width + 0.16, 0.18, depth + 0.16]} color="#171114" />
       <Block position={[0, height, 0]} size={[width, 0.14, depth]} color="#754c31" roughness={0.76} />
       <Block position={[0, height + 0.075, 0]} size={[width - 0.12, 0.035, depth - 0.12]} color="#9a633c" roughness={0.72} />
-      <Leg x={x - width / 2 + 0.18} z={z - depth / 2 + 0.18} h={height - 0.04} />
-      <Leg x={x + width / 2 - 0.18} z={z - depth / 2 + 0.18} h={height - 0.04} />
-      <Leg x={x - width / 2 + 0.18} z={z + depth / 2 - 0.18} h={height - 0.04} />
-      <Leg x={x + width / 2 - 0.18} z={z + depth / 2 - 0.18} h={height - 0.04} />
+      <Leg offsetX={-legX} offsetZ={-legZ} h={height - 0.04} />
+      <Leg offsetX={legX} offsetZ={-legZ} h={height - 0.04} />
+      <Leg offsetX={-legX} offsetZ={legZ} h={height - 0.04} />
+      <Leg offsetX={legX} offsetZ={legZ} h={height - 0.04} />
     </group>
   );
 }
@@ -121,14 +134,11 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
     <group>
       {/* ============================================================
           ARCHITECTURE / FLOOR RELIEF
-          The room is deliberately larger and built in layers so the
-          camera reads actual height instead of a single flat plane.
       ============================================================ */}
       <Block position={[0, -0.48, 0]} size={[14.8, 0.72, 12.6]} color="#05070d" roughness={0.98} />
       <Block position={[0, -0.05, 0]} size={[14.35, 0.20, 12.15]} color="#17131d" roughness={0.98} />
       <Block position={[0, 0.08, 0]} size={[14.05, 0.12, 11.85]} color="#292331" roughness={0.94} />
 
-      {/* Floor planks */}
       {Array.from({ length: 13 }, (_, i) => (
         <mesh key={`plank-${i}`} position={[0, 0.16, -5.45 + i * 0.88]} receiveShadow>
           <boxGeometry args={[13.55, 0.045, 0.035]} />
@@ -142,35 +152,33 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
         </mesh>
       ))}
 
-      {/* Raised perimeter / step */}
+      {/* Raised perimeter */}
       <Block position={[0, 0.25, -5.72]} size={[13.85, 0.16, 0.28]} color="#4a4051" />
       <Block position={[-6.72, 0.25, 0]} size={[0.28, 0.16, 11.55]} color="#4a4051" />
       <Block position={[6.72, 0.25, 0]} size={[0.28, 0.16, 11.55]} color="#4a4051" />
       <Block position={[0, 0.25, 5.72]} size={[13.85, 0.16, 0.28]} color="#4a4051" />
 
-      {/* Main rug, raised in three layers */}
+      {/* Main rug, raised in four layers */}
       <Block position={[-0.35, 0.30, 1.10]} size={[10.55, 0.18, 6.55]} color="#0f0e15" roughness={1} />
       <Block position={[-0.35, 0.41, 1.10]} size={[10.22, 0.06, 6.22]} color="#2a2533" roughness={1} />
       <Block position={[-0.35, 0.46, 1.10]} size={[9.98, 0.025, 5.98]} color="#3a3244" roughness={1} />
       <Block position={[-0.35, 0.49, 1.10]} size={[9.62, 0.018, 5.62]} color="#25202e" roughness={1} />
 
-      {/* Neon recessed trim */}
+      {/* Recessed neon trim */}
       <Block position={[0, 0.34, -5.48]} size={[12.7, 0.035, 0.045]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
       <Block position={[-6.48, 0.34, 0]} size={[0.045, 0.035, 11.0]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
       <Block position={[0, 0.34, 5.48]} size={[12.7, 0.035, 0.045]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
       <Block position={[6.48, 0.34, 0]} size={[0.045, 0.035, 11.0]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
 
-      {/* ============================================================ WALLS — thick shells + skirting + crown trim
+      {/* ============================================================ WALLS
       ============================================================ */}
       <Block position={[0, 3.35, -6.05]} size={[14.25, 6.7, 0.28]} color="#0a1222" roughness={0.98} />
       <Block position={[-6.05, 3.35, 0]} size={[0.28, 6.7, 11.9]} color="#0e1729" roughness={0.98} />
-
       <Block position={[0, 0.65, -5.83]} size={[13.85, 0.72, 0.24]} color="#080d17" roughness={1} />
       <Block position={[-5.83, 0.65, 0]} size={[0.24, 0.72, 11.55]} color="#080d17" roughness={1} />
       <Block position={[0, 6.63, -5.88]} size={[14.45, 0.22, 0.42]} color="#060910" roughness={0.96} />
       <Block position={[-5.88, 6.63, 0]} size={[0.42, 0.22, 12.1]} color="#060910" roughness={0.96} />
 
-      {/* Wall vertical relief strips */}
       {[-4.7, -1.5, 1.7, 4.9].map((x) => (
         <Block key={`wall-strip-${x}`} position={[x, 3.35, -5.84]} size={[0.055, 5.85, 0.035]} color="#1b2b45" roughness={0.9} />
       ))}
@@ -178,7 +186,7 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
         <Block key={`left-strip-${z}`} position={[-5.84, 3.35, z]} size={[0.035, 5.85, 0.055]} color="#20314d" roughness={0.9} />
       ))}
 
-      {/* ============================================================ BED ZONE — back-left, headboard flush to back wall
+      {/* ============================================================ BED ZONE
       ============================================================ */}
       <group position={[-3.55, 0, -3.25]}>
         <Block position={[0, 0.20, 0]} size={[4.25, 0.38, 3.55]} color="#08090f" roughness={1} />
@@ -198,14 +206,12 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
         <RoomSprite position={[0, 1.02, 0.02]} crop={C.coffee} height={0.30} rotation={FLOOR_ROTATION} />
       </group>
 
-      {/* ============================================================ DESK ZONE — back-right, separate from bed by a clear aisle
+      {/* ============================================================ DESK ZONE
       ============================================================ */}
       <group onClick={interactDesk}>
         <WoodTable position={[2.55, 0, -4.48]} width={5.55} depth={1.28} height={1.05} />
         <Block position={[2.55, 0.60, -4.47]} size={[4.75, 0.86, 0.12]} color="#2a1a1a" roughness={0.92} />
         <Block position={[2.55, 0.88, -4.53]} size={[4.55, 0.045, 0.05]} color="#9d633e" roughness={0.72} />
-
-        {/* Monitors are vertical; desk accessories lie on the desktop. */}
         <RoomSprite position={[1.10, 1.28, -4.98]} crop={C.laptop} height={1.02} depthOffset={0.04} />
         <RoomSprite position={[2.40, 1.34, -4.98]} crop={C.monitor} height={1.38} depthOffset={0.05} />
         <RoomSprite position={[3.72, 1.26, -4.97]} crop={C.sideMonitor} height={1.24} depthOffset={0.05} />
@@ -218,7 +224,7 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
         <RoomSprite position={[4.80, 1.55, -4.30]} crop={C.deskLamp} height={1.05} depthOffset={0.04} />
       </group>
 
-      {/* ============================================================ LOUNGE ZONE — sofa + table + plants + games
+      {/* ============================================================ LOUNGE ZONE
       ============================================================ */}
       <group position={[-3.95, 0, 2.55]}>
         <Block position={[0, 0.62, 0]} size={[3.70, 1.12, 1.48]} color="#20202e" roughness={0.98} />
@@ -228,12 +234,9 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
         <Block position={[0, 0.12, 0.02]} size={[3.95, 0.16, 1.72]} color="#11111a" />
         <RoomSprite position={[0, 1.43, -0.68]} crop={C.couchCats} height={1.00} />
       </group>
-
-      {/* Lounge rug relief */}
       <Block position={[-3.95, 0.57, 2.55]} size={[4.35, 0.08, 2.12]} color="#171521" roughness={1} />
       <Block position={[-3.95, 0.62, 2.55]} size={[4.10, 0.035, 1.88]} color="#3a3043" roughness={1} />
 
-      {/* Coffee table */}
       <WoodTable position={[-0.85, 0, 2.52]} width={2.60} depth={1.48} height={0.78} />
       <RoomSprite position={[-1.45, 0.89, 2.52]} crop={C.burger} height={0.28} rotation={FLOOR_ROTATION} />
       <RoomSprite position={[-0.80, 0.89, 2.52]} crop={C.pizza} height={0.27} rotation={FLOOR_ROTATION} />
@@ -241,7 +244,7 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
       <RoomSprite position={[-0.95, 0.90, 2.93]} crop={C.drink} height={0.30} rotation={FLOOR_ROTATION} />
       <RoomSprite position={[-0.35, 0.90, 2.95]} crop={C.glass} height={0.28} rotation={FLOOR_ROTATION} />
 
-      {/* ============================================================ WORK / HOBBY ZONE — table + chair + props
+      {/* ============================================================ HOBBY / DINING ZONE
       ============================================================ */
       <WoodTable position={[3.25, 0, 2.62]} width={3.05} depth={1.82} height={0.84} />
       <Block position={[3.25, 0.47, 3.36]} size={[2.65, 0.72, 0.12]} color="#25191a" />
@@ -250,17 +253,16 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
       <RoomSprite position={[3.90, 0.93, 2.30]} crop={C.books} height={0.40} rotation={FLOOR_ROTATION} />
       <RoomSprite position={[3.45, 0.93, 2.92]} crop={C.globe} height={0.32} rotation={FLOOR_ROTATION} />
 
-      {/* Chair */}
       <group position={[3.25, 0, 4.08]}>
         <Block position={[0, 0.55, 0]} size={[1.18, 0.18, 1.10]} color="#533624" roughness={0.8} />
         <Block position={[0, 1.18, 0.42]} size={[1.10, 1.20, 0.18]} color="#2b2228" roughness={0.94} />
-        <Leg x={-0.42} z={-0.38} h={0.50} />
-        <Leg x={0.42} z={-0.38} h={0.50} />
-        <Leg x={-0.42} z={0.38} h={0.50} />
-        <Leg x={0.42} z={0.38} h={0.50} />
+        <Leg offsetX={-0.42} offsetZ={-0.38} h={0.50} />
+        <Leg offsetX={0.42} offsetZ={-0.38} h={0.50} />
+        <Leg offsetX={-0.42} offsetZ={0.38} h={0.50} />
+        <Leg offsetX={0.42} offsetZ={0.38} h={0.50} />
       </group>
 
-      {/* ============================================================ STORAGE / MEDIA ZONE — right wall, organized shelf
+      {/* ============================================================ STORAGE / MEDIA ZONE
       ============================================================ */}
       <group position={[5.10, 0, 1.25]}>
         <Block position={[0, 0.90, 0]} size={[1.36, 1.80, 0.90]} color="#21171a" roughness={0.94} />
@@ -273,11 +275,11 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
         <RoomSprite position={[0.25, 1.26, -0.51]} crop={C.photo} height={0.35} />
       </group>
 
-      {/* Backpack + skateboard are parked together beside the lounge. */}
+      {/* Parked personal items */}
       <RoomSprite position={[-5.12, 0.72, 2.55]} crop={C.skateboard} height={1.72} depthOffset={0.02} />
       <RoomSprite position={[-4.78, 0.72, 1.42]} crop={C.backpack} height={0.92} />
 
-      {/* Small floor details deliberately grouped rather than scattered. */}
+      {/* Small personal notes / cats grouped on the front activity strip */}
       <RoomSprite position={[1.55, 0.42, 4.86]} crop={C.pinkNote} height={0.52} rotation={FLOOR_ROTATION} />
       <RoomSprite position={[2.25, 0.42, 4.86]} crop={C.purpleNote} height={0.50} rotation={FLOOR_ROTATION} />
       <RoomSprite position={[2.90, 0.42, 4.86]} crop={C.greenNote} height={0.48} rotation={FLOOR_ROTATION} />
@@ -294,12 +296,10 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
       <RoomSprite position={[2.92, 2.05, -5.78]} crop={C.todo} height={0.82} rotation={WALL_ROTATION} />
       <RoomSprite position={[4.58, 2.00, -5.78]} crop={C.map} height={0.92} rotation={WALL_ROTATION} />
 
-      {/* Second visual layer on left wall creates depth and balances the room. */}
       <RoomSprite position={[-5.80, 4.25, -1.35]} crop={C.board} height={1.30} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
       <RoomSprite position={[-5.79, 3.10, 1.35]} crop={C.cityPrint} height={0.68} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
       <RoomSprite position={[-5.78, 2.65, 2.45]} crop={C.pinkNote} height={0.50} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
 
-      {/* Warm practical lights reinforce furniture depth. */}
       <pointLight position={[-0.35, 1.35, -4.55]} intensity={0.55} color="#ffad62" distance={3.2} decay={2} />
       <pointLight position={[4.65, 1.60, -4.35]} intensity={0.75} color="#38bdf8" distance={3.4} decay={2} />
       <pointLight position={[-4.65, 2.00, 2.20]} intensity={0.35} color="#a855f7" distance={3.2} decay={2} />
