@@ -54,40 +54,45 @@ const FRAME_DURATION_IDLE = 0.5;
 const FRAME_DURATION_WALK_FRONT_BACK = 0.16;
 const FRAME_DURATION_WALK_SIDE = 0.07;
 
+/**
+ * The floor top surface sits at y≈0.18-0.19 in Room.tsx (planks + base
+ * layers), not at y=0. The player group's own y-position is controlled by
+ * whoever mounts <Player>, but the ground shadow below is defined here in
+ * local space, so we keep it just barely above the sprite's own feet
+ * (y=0) rather than assuming a world floor height.
+ */
+const SHADOW_Y_OFFSET = 0.015;
+
 /*
  * Physical map for the enlarged 14.8 x 12.6 room in Room.tsx.
- * Decorative wall art remains walkable; actual furniture and parked
- * objects receive solid AABB colliders. The padding is added to the
- * player's circular footprint, not to the furniture itself.
+ * Decorative wall art remains walkable; actual furniture and the raised
+ * zone platforms it sits on receive solid AABB colliders, sized to cover
+ * the full platform footprint (not just the furniture mesh) so the player
+ * never walks onto a raised edge it can't visually stand on. Padding is
+ * added to the player's circular footprint, not to the furniture itself.
  */
 const ROOM_COLLIDERS: RoomCollider[] = [
   // Architecture
   { id: 'back-wall', minX: -6.15, maxX: 6.15, minZ: -6.22, maxZ: -5.78 },
   { id: 'left-wall', minX: -6.22, maxX: -5.78, minZ: -5.78, maxZ: 5.78 },
 
-  // Bed + headboard, physically flush with the back wall
-  { id: 'bed', minX: -5.72, maxX: -1.38, minZ: -5.10, maxZ: -1.36, padding: 0.10 },
+  // Bed platform (raised warm zone), flush with the back wall
+  { id: 'bed-platform', minX: -5.98, maxX: -1.13, minZ: -5.13, maxZ: -0.85, padding: 0.05 },
 
-  // Bedside chest
+  // Bedside chest (sits on the bed platform, kept as its own tighter box)
   { id: 'bedside-chest', minX: -0.92, maxX: 0.22, minZ: -5.52, maxZ: -4.54, padding: 0.05 },
 
-  // Desk, including its thick rear support and front legs
-  { id: 'desk', minX: -0.24, maxX: 5.40, minZ: -5.20, maxZ: -3.72, padding: 0.10 },
+  // Desk platform (tallest / tech zone)
+  { id: 'desk-platform', minX: -0.48, maxX: 5.58, minZ: -5.46, maxZ: -3.08, padding: 0.05 },
 
-  // Sofa and its arms
-  { id: 'sofa', minX: -5.98, maxX: -1.92, minZ: 1.38, maxZ: 3.48, padding: 0.08 },
+  // Lounge platform (sunken zone: sofa + coffee table)
+  { id: 'lounge-platform', minX: -6.0, maxX: -0.93, minZ: 1.45, maxZ: 4.05, padding: 0.05 },
 
-  // Coffee table
-  { id: 'coffee-table', minX: -2.20, maxX: 0.48, minZ: 1.70, maxZ: 3.34, padding: 0.07 },
+  // Hobby / dining platform
+  { id: 'hobby-platform', minX: 1.15, maxX: 4.60, minZ: 1.15, maxZ: 4.55, padding: 0.05 },
 
-  // Hobby / dining table
-  { id: 'hobby-table', minX: 1.62, maxX: 4.88, minZ: 1.55, maxZ: 3.70, padding: 0.07 },
-
-  // Chair
-  { id: 'chair', minX: 2.62, maxX: 3.88, minZ: 3.45, maxZ: 4.72, padding: 0.07 },
-
-  // Storage unit
-  { id: 'storage', minX: 4.38, maxX: 5.82, minZ: 0.72, maxZ: 1.80, padding: 0.07 },
+  // Storage platform (moved/shrunk to avoid overlapping the hobby platform)
+  { id: 'storage-platform', minX: 4.78, maxX: 6.33, minZ: 0.475, maxZ: 2.03, padding: 0.05 },
 
   // Parked personal items beside the sofa
   { id: 'skateboard', minX: -5.72, maxX: -4.92, minZ: 2.00, maxZ: 3.15, padding: 0.04 },
@@ -115,8 +120,9 @@ function useGroundShadowTexture(): THREE.Texture {
       size / 2,
       size / 2,
     );
-    gradient.addColorStop(0, 'rgba(0,0,0,0.45)');
-    gradient.addColorStop(0.7, 'rgba(0,0,0,0.25)');
+    gradient.addColorStop(0, 'rgba(0,0,0,0.55)');
+    gradient.addColorStop(0.55, 'rgba(0,0,0,0.32)');
+    gradient.addColorStop(0.85, 'rgba(0,0,0,0.10)');
     gradient.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
@@ -354,18 +360,20 @@ export const Player: React.FC<PlayerProps> = ({
     <group ref={groupRef} position={initialPosition}>
       {showGroundShadow && (
         <mesh
-          position={[0, 0.02, 0]}
+          position={[0, SHADOW_Y_OFFSET, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
-          renderOrder={-1}
+          renderOrder={1}
         >
-          <circleGeometry args={[0.42, 24]} />
+          <circleGeometry args={[0.40, 24]} />
           <meshBasicMaterial
             map={groundShadowTexture}
             transparent
-            opacity={0.9}
+            opacity={0.85}
             depthWrite={false}
+            depthTest={true}
             polygonOffset
-            polygonOffsetFactor={-1}
+            polygonOffsetFactor={-4}
+            polygonOffsetUnits={-4}
           />
         </mesh>
       )}

@@ -1,317 +1,393 @@
-import React, { useCallback } from 'react';
-import { Player } from './Player';
-import { RoomSprite } from './RoomProps';
+import React, { useRef, useEffect, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useTexture } from '@react-three/drei';
+import * as THREE from 'three';
+import { useKeyboardControls } from '../../hooks/useKeyboardControls';
 
-interface RoomProps {
+type Direction = 'down' | 'up' | 'left' | 'right';
+
+interface Interactable {
+  id: string;
+  position: [number, number];
+  radius: number;
+  onInteract: () => void;
+}
+
+interface RoomCollider {
+  id: string;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  padding?: number;
+}
+
+interface HeightZone {
+  id: string;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  y: number;
+}
+
+interface PlayerProps {
   onInteractDesk: () => void;
+  initialPosition?: [number, number, number];
+  speed?: number;
+  deskPosition?: [number, number];
+  interactRadius?: number;
+  showGroundShadow?: boolean;
+  castShadow?: boolean;
 }
 
-type V3 = [number, number, number];
+const WALK_DIR = '/assets/Player-Actions/Walk';
+const idleFrontPaths = [`${WALK_DIR}/tile000.png`];
+const idleSidePaths = [`${WALK_DIR}/tile001.png`, `${WALK_DIR}/tile003.png`];
+const idleBackPaths = [`${WALK_DIR}/tile002.png`];
+const walkFrontPaths = [`${WALK_DIR}/tile004.png`, `${WALK_DIR}/tile005.png`];
+const walkBackPaths = [`${WALK_DIR}/tile007.png`];
+const walkSideFiles = [
+  'tile000', 'tile001', 'tile002', 'tile003', 'tile004', 'tile005',
+  'tile007', 'tile008', 'tile009', 'tile010', 'tile011', 'tile012',
+];
+const walkSidePaths = walkSideFiles.map((f) => `${WALK_DIR}/Walk2/${f}.png`);
 
-const FLOOR_ROTATION: V3 = [-Math.PI / 2, 0, 0];
-const WALL_ROTATION: V3 = [0, 0, 0];
-const LEFT_WALL_ROTATION: V3 = [0, Math.PI / 2, 0];
+const DEFAULT_SPEED = 2.55;
+const DEFAULT_DESK_POSITION: [number, number] = [2.55, -4.48];
+const DEFAULT_INTERACT_RADIUS = 1.35;
+const SPRITE_HEIGHT = 1.4;
+const SPRITE_BASE_ASPECT = 1.0 / SPRITE_HEIGHT;
+const PLAYER_RADIUS = 0.30;
+const FRAME_DURATION_IDLE = 0.5;
+const FRAME_DURATION_WALK_FRONT_BACK = 0.16;
+const FRAME_DURATION_WALK_SIDE = 0.07;
+const SHADOW_Y_OFFSET = 0.015;
 
-/** Atlas coordinates for /public/assets/Rooms/room-props.png (1536x1024). */
-const C = {
-  board: { x: 350, y: 22, width: 385, height: 302 },
-  plant: { x: 744, y: 11, width: 116, height: 296 },
-  window: { x: 880, y: 28, width: 244, height: 278 },
-  poster: { x: 1150, y: 15, width: 143, height: 197 },
-  guitar: { x: 1424, y: 16, width: 102, height: 312 },
-  wallShelf: { x: 1103, y: 202, width: 323, height: 164 },
-  todo: { x: 1080, y: 371, width: 177, height: 191 },
-  map: { x: 1270, y: 367, width: 251, height: 227 },
-  laptop: { x: 220, y: 359, width: 178, height: 210 },
-  monitor: { x: 394, y: 344, width: 264, height: 198 },
-  sideMonitor: { x: 662, y: 335, width: 135, height: 220 },
-  deskLamp: { x: 799, y: 318, width: 166, height: 244 },
-  keyboard: { x: 431, y: 545, width: 236, height: 81 },
-  mousePad: { x: 660, y: 558, width: 138, height: 72 },
-  mouse: { x: 792, y: 558, width: 105, height: 108 },
-  camera: { x: 801, y: 478, width: 58, height: 68 },
-  phone: { x: 852, y: 555, width: 64, height: 73 },
-  pencilCup: { x: 950, y: 413, width: 51, height: 86 },
-  bed: { x: 1, y: 569, width: 422, height: 373 },
-  skateboard: { x: 431, y: 648, width: 84, height: 260 },
-  backpack: { x: 518, y: 638, width: 151, height: 190 },
-  burger: { x: 681, y: 638, width: 95, height: 70 },
-  pizza: { x: 681, y: 710, width: 95, height: 67 },
-  drink: { x: 783, y: 625, width: 47, height: 78 },
-  glass: { x: 852, y: 640, width: 53, height: 67 },
-  bowl: { x: 792, y: 708, width: 82, height: 66 },
-  coffee: { x: 610, y: 826, width: 88, height: 78 },
-  couchCats: { x: 698, y: 773, width: 195, height: 100 },
-  sleepingCats: { x: 901, y: 770, width: 200, height: 110 },
-  cityPrint: { x: 1055, y: 582, width: 131, height: 105 },
-  pinkNote: { x: 1200, y: 582, width: 92, height: 105 },
-  purpleNote: { x: 1305, y: 588, width: 88, height: 103 },
-  greenNote: { x: 1405, y: 600, width: 84, height: 95 },
-  globe: { x: 1020, y: 697, width: 115, height: 94 },
-  vase: { x: 1080, y: 697, width: 90, height: 105 },
-  ideas: { x: 1141, y: 697, width: 123, height: 100 },
-  photo: { x: 1265, y: 713, width: 149, height: 86 },
-  console: { x: 1112, y: 809, width: 123, height: 67 },
-  cameraLarge: { x: 1265, y: 787, width: 96, height: 145 },
-  books: { x: 1350, y: 787, width: 80, height: 145 },
-  plantLarge: { x: 1409, y: 697, width: 122, height: 168 },
-} as const;
+/**
+ * Must match the constants in Room.tsx (FLOOR_TOP / TIER_LOW / TIER_MED /
+ * TIER_HIGH). Kept duplicated here since Room and Player are separate
+ * modules — if you rework the room's heights, update both.
+ */
+const FLOOR_TOP = 0.1825;
+const TIER_LOW = 0.16;
+const TIER_MED = 0.24;
+const TIER_HIGH = 0.34;
+const HEIGHT_LERP_SPEED = 6; // higher = snappier climb/descend
 
-function Block({
-  position,
-  size,
-  color,
-  y = 0,
-  roughness = 0.86,
-  metalness = 0,
-  emissive,
-  emissiveIntensity = 0,
-}: {
-  position: [number, number, number];
-  size: [number, number, number];
-  color: string;
-  y?: number;
-  roughness?: number;
-  metalness?: number;
-  emissive?: string;
-  emissiveIntensity?: number;
-}) {
-  return (
-    <mesh position={[position[0], position[1] + y, position[2]]} castShadow receiveShadow>
-      <boxGeometry args={size} />
-      <meshStandardMaterial
-        color={color}
-        roughness={roughness}
-        metalness={metalness}
-        emissive={emissive}
-        emissiveIntensity={emissiveIntensity}
-      />
-    </mesh>
+/**
+ * Zones where the player's Y should rise or fall to match the platform
+ * they're standing on. Bounds are intentionally the FULL platform + stair
+ * footprint (not just the furniture), so the climb starts as soon as the
+ * player sets foot on the stairs, not only once fully on top.
+ * Order matters: first match wins, so keep these non-overlapping.
+ */
+const HEIGHT_ZONES: HeightZone[] = [
+  { id: 'bed-zone', minX: -6.05, maxX: -1.05, minZ: -5.10, maxZ: -0.40, y: FLOOR_TOP + TIER_LOW },
+  { id: 'desk-zone', minX: -0.50, maxX: 5.60, minZ: -5.45, maxZ: -2.27, y: FLOOR_TOP + TIER_HIGH },
+  { id: 'lounge-zone', minX: -5.90, maxX: -0.50, minZ: 0.60, maxZ: 4.80, y: FLOOR_TOP + TIER_LOW },
+  { id: 'dining-zone', minX: -0.20, maxX: 5.50, minZ: 0.90, maxZ: 4.90, y: FLOOR_TOP + TIER_MED },
+];
+
+function getTargetHeight(x: number, z: number): number {
+  for (const zone of HEIGHT_ZONES) {
+    if (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) {
+      return zone.y;
+    }
+  }
+  return FLOOR_TOP;
+}
+
+/*
+ * Physical map for the 14.8 x 12.6 room in Room.tsx. Unlike before, these
+ * colliders now cover ONLY the actual furniture footprint, not the whole
+ * platform — the platform itself is walkable (the player climbs onto it
+ * via the height-zone system above), only the solid objects on top of it
+ * block movement.
+ */
+const ROOM_COLLIDERS: RoomCollider[] = [
+  { id: 'back-wall', minX: -6.15, maxX: 6.15, minZ: -6.22, maxZ: -5.78 },
+  { id: 'left-wall', minX: -6.22, maxX: -5.78, minZ: -5.78, maxZ: 5.78 },
+
+  { id: 'bed', minX: -5.68, maxX: -1.43, minZ: -5.03, maxZ: -1.48, padding: 0.08 },
+  { id: 'bedside-chest', minX: -0.92, maxX: 0.22, minZ: -5.52, maxZ: -4.54, padding: 0.05 },
+  { id: 'desk', minX: -0.20, maxX: 5.30, minZ: -5.15, maxZ: -3.75, padding: 0.08 },
+
+  { id: 'sofa', minX: -6.06, maxX: -2.34, minZ: 1.36, maxZ: 2.85, padding: 0.06 },
+  { id: 'coffee-table', minX: -3.80, maxX: -1.60, minZ: 2.86, maxZ: 4.34, padding: 0.06 },
+
+  { id: 'dining-table', minX: 1.375, maxX: 4.425, minZ: 1.69, maxZ: 3.51, padding: 0.06 },
+  { id: 'chair', minX: 2.38, maxX: 3.42, minZ: 3.45, maxZ: 4.55, padding: 0.06 },
+  { id: 'storage-shelf', minX: 4.22, maxX: 5.58, minZ: 1.33, maxZ: 2.27, padding: 0.06 },
+
+  { id: 'skateboard', minX: -5.85, maxX: -5.45, minZ: -2.75, maxZ: -1.95, padding: 0.04 },
+  { id: 'backpack', minX: -5.65, maxX: -5.05, minZ: -2.05, maxZ: -1.25, padding: 0.04 },
+];
+
+interface AnimState {
+  frames: THREE.Texture[];
+  frameDuration: number;
+  mirror: boolean;
+}
+
+function useGroundShadowTexture(): THREE.Texture {
+  return useMemo(() => {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gradient.addColorStop(0, 'rgba(0,0,0,0.55)');
+    gradient.addColorStop(0.55, 'rgba(0,0,0,0.32)');
+    gradient.addColorStop(0.85, 'rgba(0,0,0,0.10)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearFilter;
+    return texture;
+  }, []);
+}
+
+function circleHitsAABB(x: number, z: number, collider: RoomCollider): boolean {
+  const padding = collider.padding ?? 0;
+  const minX = collider.minX - padding;
+  const maxX = collider.maxX + padding;
+  const minZ = collider.minZ - padding;
+  const maxZ = collider.maxZ + padding;
+
+  const closestX = THREE.MathUtils.clamp(x, minX, maxX);
+  const closestZ = THREE.MathUtils.clamp(z, minZ, maxZ);
+  const dx = x - closestX;
+  const dz = z - closestZ;
+
+  return dx * dx + dz * dz < PLAYER_RADIUS * PLAYER_RADIUS;
+}
+
+function canOccupy(x: number, z: number): boolean {
+  const insideBounds =
+    x >= -5.48 + PLAYER_RADIUS &&
+    x <= 6.48 - PLAYER_RADIUS &&
+    z >= -5.48 + PLAYER_RADIUS &&
+    z <= 5.48 - PLAYER_RADIUS;
+
+  if (!insideBounds) return false;
+  return !ROOM_COLLIDERS.some((collider) => circleHitsAABB(x, z, collider));
+}
+
+function moveWithCollisions(position: THREE.Vector3, dx: number, dz: number) {
+  const distance = Math.hypot(dx, dz);
+  const steps = Math.max(1, Math.ceil(distance / 0.08));
+  const stepX = dx / steps;
+  const stepZ = dz / steps;
+
+  for (let i = 0; i < steps; i += 1) {
+    const nextX = position.x + stepX;
+    const nextZ = position.z + stepZ;
+
+    if (canOccupy(nextX, nextZ)) {
+      position.x = nextX;
+      position.z = nextZ;
+      continue;
+    }
+
+    if (canOccupy(nextX, position.z)) position.x = nextX;
+    if (canOccupy(position.x, nextZ)) position.z = nextZ;
+  }
+}
+
+export const Player: React.FC<PlayerProps> = ({
+  onInteractDesk,
+  initialPosition = [0, FLOOR_TOP, 0],
+  speed = DEFAULT_SPEED,
+  deskPosition = DEFAULT_DESK_POSITION,
+  interactRadius = DEFAULT_INTERACT_RADIUS,
+  showGroundShadow = true,
+  castShadow = true,
+}) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const spriteRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const movement = useKeyboardControls();
+
+  const idleFrontTextures = useTexture(idleFrontPaths) as THREE.Texture[];
+  const idleSideTextures = useTexture(idleSidePaths) as THREE.Texture[];
+  const idleBackTextures = useTexture(idleBackPaths) as THREE.Texture[];
+  const walkFrontTextures = useTexture(walkFrontPaths) as THREE.Texture[];
+  const walkBackTextures = useTexture(walkBackPaths) as THREE.Texture[];
+  const walkSideTextures = useTexture(walkSidePaths) as THREE.Texture[];
+  const groundShadowTexture = useGroundShadowTexture();
+
+  const allTextures = useMemo(
+    () => [
+      ...idleFrontTextures,
+      ...idleSideTextures,
+      ...idleBackTextures,
+      ...walkFrontTextures,
+      ...walkBackTextures,
+      ...walkSideTextures,
+    ],
+    [idleFrontTextures, idleSideTextures, idleBackTextures, walkFrontTextures, walkBackTextures, walkSideTextures],
   );
-}
 
-function Leg({ offsetX, offsetZ, h = 0.82 }: { offsetX: number; offsetZ: number; h?: number }) {
-  return (
-    <Block
-      position={[offsetX, h / 2, offsetZ]}
-      size={[0.16, h, 0.16]}
-      color="#1c1518"
-      roughness={0.92}
-    />
+  useEffect(() => {
+    allTextures.forEach((tex) => {
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.center.set(0.5, 0.5);
+      tex.wrapS = THREE.RepeatWrapping;
+    });
+  }, [allTextures]);
+
+  const frameTimer = useRef(0);
+  const currentFrame = useRef(0);
+  const currentDirection = useRef<Direction>('down');
+  const wasMoving = useRef(false);
+  const wasInteractPressed = useRef(false);
+
+  const interactables = useMemo<Interactable[]>(
+    () => [{ id: 'desk', position: deskPosition, radius: interactRadius, onInteract: onInteractDesk }],
+    [deskPosition, interactRadius, onInteractDesk],
   );
-}
 
-function WoodTable({
-  position,
-  width,
-  depth,
-  height = 0.82,
-}: {
-  position: [number, number, number];
-  width: number;
-  depth: number;
-  height?: number;
-}) {
-  const legX = width / 2 - 0.18;
-  const legZ = depth / 2 - 0.18;
+  const getAnimState = (direction: Direction, isMoving: boolean): AnimState => {
+    switch (direction) {
+      case 'down':
+        return isMoving
+          ? { frames: walkFrontTextures, frameDuration: FRAME_DURATION_WALK_FRONT_BACK, mirror: false }
+          : { frames: idleFrontTextures, frameDuration: FRAME_DURATION_IDLE, mirror: false };
+      case 'up':
+        return isMoving
+          ? { frames: walkBackTextures, frameDuration: FRAME_DURATION_WALK_FRONT_BACK, mirror: false }
+          : { frames: idleBackTextures, frameDuration: FRAME_DURATION_IDLE, mirror: false };
+      case 'left':
+      case 'right':
+        return isMoving
+          ? { frames: walkSideTextures, frameDuration: FRAME_DURATION_WALK_SIDE, mirror: direction === 'left' }
+          : { frames: idleSideTextures, frameDuration: FRAME_DURATION_IDLE, mirror: direction === 'left' };
+    }
+  };
+
+  useFrame((state, rawDelta) => {
+    if (!groupRef.current || !spriteRef.current || !materialRef.current) return;
+
+    const delta = Math.min(rawDelta, 1 / 30);
+    const currentPos = groupRef.current.position;
+
+    let moveX = 0;
+    let moveZ = 0;
+    if (movement.moveBackward) moveZ += 1;
+    if (movement.moveForward) moveZ -= 1;
+    if (movement.moveLeft) moveX -= 1;
+    if (movement.moveRight) moveX += 1;
+
+    const isMoving = moveX !== 0 || moveZ !== 0;
+
+    if (isMoving) {
+      const length = Math.hypot(moveX, moveZ);
+      const stepX = (moveX / length) * speed * delta;
+      const stepZ = (moveZ / length) * speed * delta;
+      moveWithCollisions(currentPos, stepX, stepZ);
+    }
+
+    // Climb/descend: smoothly move toward the height of the zone the
+    // player's feet are currently over.
+    const targetY = getTargetHeight(currentPos.x, currentPos.z);
+    currentPos.y = THREE.MathUtils.damp(currentPos.y, targetY, HEIGHT_LERP_SPEED, delta);
+
+    let newDirection = currentDirection.current;
+    if (isMoving) {
+      newDirection =
+        Math.abs(moveX) >= Math.abs(moveZ)
+          ? moveX > 0 ? 'right' : 'left'
+          : moveZ > 0 ? 'down' : 'up';
+    }
+
+    const directionChanged = newDirection !== currentDirection.current;
+    const movementStateChanged = isMoving !== wasMoving.current;
+
+    if (directionChanged || movementStateChanged) {
+      currentDirection.current = newDirection;
+      wasMoving.current = isMoving;
+      currentFrame.current = 0;
+      frameTimer.current = 0;
+    }
+
+    const { frames, frameDuration, mirror } = getAnimState(currentDirection.current, isMoving);
+
+    if (frames.length > 1) {
+      frameTimer.current += delta;
+      while (frameTimer.current >= frameDuration) {
+        currentFrame.current = (currentFrame.current + 1) % frames.length;
+        frameTimer.current -= frameDuration;
+      }
+    } else {
+      currentFrame.current = 0;
+    }
+
+    const targetTexture = frames[currentFrame.current];
+    targetTexture.repeat.x = mirror ? -1 : 1;
+
+    if (materialRef.current.map !== targetTexture) {
+      materialRef.current.map = targetTexture;
+      materialRef.current.needsUpdate = true;
+    }
+
+    const img = targetTexture.image as { width?: number; height?: number } | undefined;
+    if (img?.width && img?.height) {
+      const texAspect = img.width / img.height;
+      spriteRef.current.scale.x = texAspect / SPRITE_BASE_ASPECT;
+    }
+
+    spriteRef.current.quaternion.copy(state.camera.quaternion);
+
+    const interactJustPressed = movement.interact && !wasInteractPressed.current;
+    wasInteractPressed.current = movement.interact;
+
+    if (interactJustPressed) {
+      for (const target of interactables) {
+        const dist = Math.hypot(currentPos.x - target.position[0], currentPos.z - target.position[1]);
+        if (dist < target.radius) {
+          target.onInteract();
+          break;
+        }
+      }
+    }
+  });
+
   return (
-    <group position={position}>
-      <Block position={[0, height - 0.08, 0]} size={[width + 0.16, 0.18, depth + 0.16]} color="#171114" />
-      <Block position={[0, height, 0]} size={[width, 0.14, depth]} color="#754c31" roughness={0.76} />
-      <Block position={[0, height + 0.075, 0]} size={[width - 0.12, 0.035, depth - 0.12]} color="#9a633c" roughness={0.72} />
-      <Leg offsetX={-legX} offsetZ={-legZ} h={height - 0.04} />
-      <Leg offsetX={legX} offsetZ={-legZ} h={height - 0.04} />
-      <Leg offsetX={-legX} offsetZ={legZ} h={height - 0.04} />
-      <Leg offsetX={legX} offsetZ={legZ} h={height - 0.04} />
+    <group ref={groupRef} position={initialPosition}>
+      {showGroundShadow && (
+        <mesh position={[0, SHADOW_Y_OFFSET, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
+          <circleGeometry args={[0.40, 24]} />
+          <meshBasicMaterial
+            map={groundShadowTexture}
+            transparent
+            opacity={0.85}
+            depthWrite={false}
+            depthTest={true}
+            polygonOffset
+            polygonOffsetFactor={-4}
+            polygonOffsetUnits={-4}
+          />
+        </mesh>
+      )}
+
+      <mesh ref={spriteRef} position={[0, SPRITE_HEIGHT / 2, 0]} castShadow={castShadow} receiveShadow>
+        <planeGeometry args={[1.0, SPRITE_HEIGHT]} />
+        <meshStandardMaterial
+          ref={materialRef}
+          transparent
+          alphaTest={0.5}
+          side={THREE.DoubleSide}
+          roughness={1}
+          metalness={0}
+        />
+      </mesh>
     </group>
   );
-}
-
-export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
-  const interactDesk = useCallback(() => onInteractDesk(), [onInteractDesk]);
-
-  return (
-    <group>
-      {/* ============================================================
-          ARCHITECTURE / FLOOR RELIEF
-      ============================================================ */}
-      <Block position={[0, -0.48, 0]} size={[14.8, 0.72, 12.6]} color="#05070d" roughness={0.98} />
-      <Block position={[0, -0.05, 0]} size={[14.35, 0.20, 12.15]} color="#17131d" roughness={0.98} />
-      <Block position={[0, 0.08, 0]} size={[14.05, 0.12, 11.85]} color="#292331" roughness={0.94} />
-
-      {Array.from({ length: 13 }, (_, i) => (
-        <mesh key={`plank-${i}`} position={[0, 0.16, -5.45 + i * 0.88]} receiveShadow>
-          <boxGeometry args={[13.55, 0.045, 0.035]} />
-          <meshStandardMaterial color={i % 2 ? '#45394a' : '#382f40'} roughness={0.92} />
-        </mesh>
-      ))}
-      {Array.from({ length: 12 }, (_, i) => (
-        <mesh key={`seam-${i}`} position={[-6.0 + i * 1.05, 0.175, 0]} receiveShadow>
-          <boxGeometry args={[0.025, 0.025, 11.25]} />
-          <meshStandardMaterial color="#1d1823" roughness={1} />
-        </mesh>
-      ))}
-
-      {/* Raised perimeter */}
-      <Block position={[0, 0.25, -5.72]} size={[13.85, 0.16, 0.28]} color="#4a4051" />
-      <Block position={[-6.72, 0.25, 0]} size={[0.28, 0.16, 11.55]} color="#4a4051" />
-      <Block position={[6.72, 0.25, 0]} size={[0.28, 0.16, 11.55]} color="#4a4051" />
-      <Block position={[0, 0.25, 5.72]} size={[13.85, 0.16, 0.28]} color="#4a4051" />
-
-      {/* Main rug, raised in four layers */}
-      <Block position={[-0.35, 0.30, 1.10]} size={[10.55, 0.18, 6.55]} color="#0f0e15" roughness={1} />
-      <Block position={[-0.35, 0.41, 1.10]} size={[10.22, 0.06, 6.22]} color="#2a2533" roughness={1} />
-      <Block position={[-0.35, 0.46, 1.10]} size={[9.98, 0.025, 5.98]} color="#3a3244" roughness={1} />
-      <Block position={[-0.35, 0.49, 1.10]} size={[9.62, 0.018, 5.62]} color="#25202e" roughness={1} />
-
-      {/* Recessed neon trim */}
-      <Block position={[0, 0.34, -5.48]} size={[12.7, 0.035, 0.045]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
-      <Block position={[-6.48, 0.34, 0]} size={[0.045, 0.035, 11.0]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
-      <Block position={[0, 0.34, 5.48]} size={[12.7, 0.035, 0.045]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
-      <Block position={[6.48, 0.34, 0]} size={[0.045, 0.035, 11.0]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
-
-      {/* ============================================================ WALLS
-      ============================================================ */}
-      <Block position={[0, 3.35, -6.05]} size={[14.25, 6.7, 0.28]} color="#0a1222" roughness={0.98} />
-      <Block position={[-6.05, 3.35, 0]} size={[0.28, 6.7, 11.9]} color="#0e1729" roughness={0.98} />
-      <Block position={[0, 0.65, -5.83]} size={[13.85, 0.72, 0.24]} color="#080d17" roughness={1} />
-      <Block position={[-5.83, 0.65, 0]} size={[0.24, 0.72, 11.55]} color="#080d17" roughness={1} />
-      <Block position={[0, 6.63, -5.88]} size={[14.45, 0.22, 0.42]} color="#060910" roughness={0.96} />
-      <Block position={[-5.88, 6.63, 0]} size={[0.42, 0.22, 12.1]} color="#060910" roughness={0.96} />
-
-      {[-4.7, -1.5, 1.7, 4.9].map((x) => (
-        <Block key={`wall-strip-${x}`} position={[x, 3.35, -5.84]} size={[0.055, 5.85, 0.035]} color="#1b2b45" roughness={0.9} />
-      ))}
-      {[-4.2, -1.2, 1.8, 4.8].map((z) => (
-        <Block key={`left-strip-${z}`} position={[-5.84, 3.35, z]} size={[0.035, 5.85, 0.055]} color="#20314d" roughness={0.9} />
-      ))}
-
-      {/* ============================================================ BED ZONE
-      ============================================================ */}
-      <group position={[-3.55, 0, -3.25]}>
-        <Block position={[0, 0.20, 0]} size={[4.25, 0.38, 3.55]} color="#08090f" roughness={1} />
-        <Block position={[0, 0.43, 0]} size={[4.02, 0.20, 3.32]} color="#3a2527" roughness={0.86} />
-        <Block position={[0, 0.56, 0]} size={[3.82, 0.06, 3.12]} color="#7c5135" roughness={0.78} />
-        <Block position={[0, 1.18, -1.57]} size={[3.90, 1.25, 0.28]} color="#392528" roughness={0.9} />
-        <Block position={[0, 1.78, -1.73]} size={[4.08, 0.18, 0.38]} color="#845839" roughness={0.74} />
-        <Block position={[0, 1.62, -1.86]} size={[3.72, 0.04, 0.035]} color="#bd7c4c" roughness={0.72} />
-        <RoomSprite position={[0, 0.62, 0.02]} crop={C.bed} height={2.85} rotation={FLOOR_ROTATION} depthOffset={0.08} />
-      </group>
-
-      {/* Bedside chest */}
-      <group position={[-0.35, 0, -5.02]}>
-        <Block position={[0, 0.48, 0]} size={[1.05, 0.86, 0.88]} color="#2d1d1d" roughness={0.92} />
-        <Block position={[0, 0.96, 0]} size={[1.18, 0.12, 0.98]} color="#795039" roughness={0.76} />
-        <Block position={[0, 0.56, 0.45]} size={[0.74, 0.035, 0.025]} color="#9d6841" />
-        <RoomSprite position={[0, 1.02, 0.02]} crop={C.coffee} height={0.30} rotation={FLOOR_ROTATION} />
-      </group>
-
-      {/* ============================================================ DESK ZONE
-      ============================================================ */}
-      <group onClick={interactDesk}>
-        <WoodTable position={[2.55, 0, -4.48]} width={5.55} depth={1.28} height={1.05} />
-        <Block position={[2.55, 0.60, -4.47]} size={[4.75, 0.86, 0.12]} color="#2a1a1a" roughness={0.92} />
-        <Block position={[2.55, 0.88, -4.53]} size={[4.55, 0.045, 0.05]} color="#9d633e" roughness={0.72} />
-        <RoomSprite position={[1.10, 1.28, -4.98]} crop={C.laptop} height={1.02} depthOffset={0.04} />
-        <RoomSprite position={[2.40, 1.34, -4.98]} crop={C.monitor} height={1.38} depthOffset={0.05} />
-        <RoomSprite position={[3.72, 1.26, -4.97]} crop={C.sideMonitor} height={1.24} depthOffset={0.05} />
-        <RoomSprite position={[1.65, 1.09, -4.22]} crop={C.keyboard} height={0.36} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[2.95, 1.09, -4.18]} crop={C.mousePad} height={0.30} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[3.56, 1.09, -4.16]} crop={C.mouse} height={0.22} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[4.20, 1.12, -4.18]} crop={C.phone} height={0.28} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[4.55, 1.20, -4.16]} crop={C.camera} height={0.24} rotation={FLOOR_ROTATION} />
-        <RoomSprite position={[0.65, 1.15, -4.12]} crop={C.pencilCup} height={0.38} />
-        <RoomSprite position={[4.80, 1.55, -4.30]} crop={C.deskLamp} height={1.05} depthOffset={0.04} />
-      </group>
-
-      {/* ============================================================ LOUNGE ZONE
-      ============================================================ */}
-      <group position={[-3.95, 0, 2.55]}>
-        <Block position={[0, 0.62, 0]} size={[3.70, 1.12, 1.48]} color="#20202e" roughness={0.98} />
-        <Block position={[0, 1.24, -0.47]} size={[3.72, 0.84, 0.46]} color="#2c2b3d" roughness={0.96} />
-        <Block position={[-1.62, 0.66, 0]} size={[0.22, 1.26, 1.70]} color="#14141f" />
-        <Block position={[1.62, 0.66, 0]} size={[0.22, 1.26, 1.70]} color="#14141f" />
-        <Block position={[0, 0.12, 0.02]} size={[3.95, 0.16, 1.72]} color="#11111a" />
-        <RoomSprite position={[0, 1.43, -0.68]} crop={C.couchCats} height={1.00} />
-      </group>
-      <Block position={[-3.95, 0.57, 2.55]} size={[4.35, 0.08, 2.12]} color="#171521" roughness={1} />
-      <Block position={[-3.95, 0.62, 2.55]} size={[4.10, 0.035, 1.88]} color="#3a3043" roughness={1} />
-
-      <WoodTable position={[-0.85, 0, 2.52]} width={2.60} depth={1.48} height={0.78} />
-      <RoomSprite position={[-1.45, 0.89, 2.52]} crop={C.burger} height={0.28} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[-0.80, 0.89, 2.52]} crop={C.pizza} height={0.27} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[-0.18, 0.89, 2.45]} crop={C.bowl} height={0.28} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[-0.95, 0.90, 2.93]} crop={C.drink} height={0.30} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[-0.35, 0.90, 2.95]} crop={C.glass} height={0.28} rotation={FLOOR_ROTATION} />
-
-      {/* ============================================================ HOBBY / DINING ZONE
-      ============================================================ */
-      <WoodTable position={[3.25, 0, 2.62]} width={3.05} depth={1.82} height={0.84} />
-      <Block position={[3.25, 0.47, 3.36]} size={[2.65, 0.72, 0.12]} color="#25191a" />
-      <RoomSprite position={[2.35, 0.93, 2.35]} crop={C.ideas} height={0.44} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[3.10, 0.93, 2.30]} crop={C.cameraLarge} height={0.42} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[3.90, 0.93, 2.30]} crop={C.books} height={0.40} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[3.45, 0.93, 2.92]} crop={C.globe} height={0.32} rotation={FLOOR_ROTATION} />
-
-      <group position={[3.25, 0, 4.08]}>
-        <Block position={[0, 0.55, 0]} size={[1.18, 0.18, 1.10]} color="#533624" roughness={0.8} />
-        <Block position={[0, 1.18, 0.42]} size={[1.10, 1.20, 0.18]} color="#2b2228" roughness={0.94} />
-        <Leg offsetX={-0.42} offsetZ={-0.38} h={0.50} />
-        <Leg offsetX={0.42} offsetZ={-0.38} h={0.50} />
-        <Leg offsetX={-0.42} offsetZ={0.38} h={0.50} />
-        <Leg offsetX={0.42} offsetZ={0.38} h={0.50} />
-      </group>
-
-      {/* ============================================================ STORAGE / MEDIA ZONE
-      ============================================================ */}
-      <group position={[5.10, 0, 1.25]}>
-        <Block position={[0, 0.90, 0]} size={[1.36, 1.80, 0.90]} color="#21171a" roughness={0.94} />
-        <Block position={[0, 0.34, -0.47]} size={[1.52, 0.10, 1.04]} color="#754b32" roughness={0.78} />
-        <Block position={[0, 0.92, -0.47]} size={[1.52, 0.10, 1.04]} color="#754b32" roughness={0.78} />
-        <Block position={[0, 1.50, -0.47]} size={[1.52, 0.10, 1.04]} color="#754b32" roughness={0.78} />
-        <RoomSprite position={[0, 1.86, -0.02]} crop={C.plantLarge} height={0.90} />
-        <RoomSprite position={[-0.35, 0.68, -0.51]} crop={C.books} height={0.44} />
-        <RoomSprite position={[0.34, 0.68, -0.51]} crop={C.console} height={0.32} />
-        <RoomSprite position={[0.25, 1.26, -0.51]} crop={C.photo} height={0.35} />
-      </group>
-
-      {/* Parked personal items */}
-      <RoomSprite position={[-5.12, 0.72, 2.55]} crop={C.skateboard} height={1.72} depthOffset={0.02} />
-      <RoomSprite position={[-4.78, 0.72, 1.42]} crop={C.backpack} height={0.92} />
-
-      {/* Small personal notes / cats grouped on the front activity strip */}
-      <RoomSprite position={[1.55, 0.42, 4.86]} crop={C.pinkNote} height={0.52} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[2.25, 0.42, 4.86]} crop={C.purpleNote} height={0.50} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[2.90, 0.42, 4.86]} crop={C.greenNote} height={0.48} rotation={FLOOR_ROTATION} />
-      <RoomSprite position={[4.10, 0.42, 4.75]} crop={C.sleepingCats} height={0.72} rotation={FLOOR_ROTATION} />
-
-      {/* ============================================================ WALL DECORATION
-      ============================================================ */}
-      <RoomSprite position={[-3.80, 4.72, -5.84]} crop={C.board} height={1.72} rotation={WALL_ROTATION} />
-      <RoomSprite position={[-1.10, 4.55, -5.84]} crop={C.window} height={1.48} rotation={WALL_ROTATION} />
-      <RoomSprite position={[0.75, 4.48, -5.84]} crop={C.poster} height={1.26} rotation={WALL_ROTATION} />
-      <RoomSprite position={[2.20, 4.35, -5.82]} crop={C.plant} height={1.54} rotation={WALL_ROTATION} />
-      <RoomSprite position={[4.28, 3.72, -5.80]} crop={C.guitar} height={1.86} rotation={WALL_ROTATION} />
-      <RoomSprite position={[3.72, 2.70, -5.79]} crop={C.wallShelf} height={0.86} rotation={WALL_ROTATION} />
-      <RoomSprite position={[2.92, 2.05, -5.78]} crop={C.todo} height={0.82} rotation={WALL_ROTATION} />
-      <RoomSprite position={[4.58, 2.00, -5.78]} crop={C.map} height={0.92} rotation={WALL_ROTATION} />
-
-      <RoomSprite position={[-5.80, 4.25, -1.35]} crop={C.board} height={1.30} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
-      <RoomSprite position={[-5.79, 3.10, 1.35]} crop={C.cityPrint} height={0.68} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
-      <RoomSprite position={[-5.78, 2.65, 2.45]} crop={C.pinkNote} height={0.50} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
-
-      <pointLight position={[-0.35, 1.35, -4.55]} intensity={0.55} color="#ffad62" distance={3.2} decay={2} />
-      <pointLight position={[4.65, 1.60, -4.35]} intensity={0.75} color="#38bdf8" distance={3.4} decay={2} />
-      <pointLight position={[-4.65, 2.00, 2.20]} intensity={0.35} color="#a855f7" distance={3.2} decay={2} />
-
-      <Player
-        onInteractDesk={onInteractDesk}
-        initialPosition={[0, 0, 0.45]}
-        deskPosition={[2.55, -4.48]}
-        speed={2.55}
-      />
-    </group>
-  );
-});
-
-Room.displayName = 'Room';
+};
