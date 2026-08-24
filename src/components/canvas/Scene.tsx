@@ -14,8 +14,8 @@ const EtherealVoid: React.FC = () => {
 
   useFrame(({ clock }) => {
     if (ringsRef.current) {
-      ringsRef.current.rotation.x = clock.getElapsedTime() * 0.015;
-      ringsRef.current.rotation.y = clock.getElapsedTime() * 0.008;
+      ringsRef.current.rotation.x = clock.getElapsedTime() * 0.012;
+      ringsRef.current.rotation.y = clock.getElapsedTime() * 0.006;
     }
   });
 
@@ -25,16 +25,16 @@ const EtherealVoid: React.FC = () => {
         <sphereGeometry args={[1, 64, 64]} />
         <meshBasicMaterial color="#02040a" side={THREE.BackSide} />
       </mesh>
-      <Stars radius={44} depth={65} count={2200} factor={4} saturation={0.9} fade speed={0.35} />
-      <group ref={ringsRef} position={[0, -5, -20]}>
+      <Stars radius={48} depth={70} count={1800} factor={3.5} saturation={0.9} fade speed={0.35} />
+      <group ref={ringsRef} position={[0, -6, -24]}>
         {[0, 1, 2].map((i) => (
-          <mesh key={i} rotation={[Math.PI / 2 + i * 0.4, 0, 0]} scale={1 + i * 0.2}>
-            <torusGeometry args={[25, 0.05, 16, 100]} />
-            <meshBasicMaterial color="#38bdf8" transparent opacity={0.1 - i * 0.03} />
+          <mesh key={i} rotation={[Math.PI / 2 + i * 0.35, 0, 0]} scale={1 + i * 0.18}>
+            <torusGeometry args={[26, 0.045, 16, 100]} />
+            <meshBasicMaterial color="#38bdf8" transparent opacity={0.08 - i * 0.02} />
           </mesh>
         ))}
       </group>
-      <Sparkles count={170} scale={22} size={2.5} speed={0.2} opacity={0.30} color="#8ebcff" position={[0, 5, 0]} />
+      <Sparkles count={130} scale={20} size={2.3} speed={0.18} opacity={0.28} color="#8ebcff" position={[0, 5, 0]} />
     </group>
   );
 };
@@ -48,7 +48,7 @@ const BreathingLight: React.FC<{
   const lightRef = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
     if (!lightRef.current) return;
-    const pulse = 1 + Math.sin(clock.getElapsedTime() * speed) * 0.12;
+    const pulse = 1 + Math.sin(clock.getElapsedTime() * speed) * 0.10;
     lightRef.current.intensity = intensity * pulse;
   });
   return <pointLight ref={lightRef} position={position} intensity={intensity} color={color} distance={10} decay={2} />;
@@ -72,8 +72,8 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => {
         shadows="soft"
         dpr={[1, 2]}
         camera={{
-          position: [18, 18, 18],
-          zoom: 39,
+          position: [20, 20, 20],
+          zoom: 36,
           near: 0.05,
           far: 1000,
         }}
@@ -89,14 +89,14 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => {
         }}
       >
         <EtherealVoid />
-        <fog attach="fog" args={['#02040a', 18, 52]} />
+        <fog attach="fog" args={['#02040a', 17, 48]} />
 
         <ambientLight intensity={0.35} color="#a6c8ff" />
-        <hemisphereLight intensity={0.25} color="#8ebcff" groundColor="#050811" />
+        <hemisphereLight intensity={0.24} color="#8ebcff" groundColor="#050811" />
 
         <directionalLight
           position={[12, 22, 10]}
-          intensity={1.65}
+          intensity={1.7}
           color="#fffaf0"
           castShadow
           shadow-mapSize={[4096, 4096]}
@@ -110,42 +110,41 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => {
           shadow-camera-far={70}
         />
 
-        <BreathingLight position={[2.8, 3.4, -4.3]} intensity={1.35} color="#00f0ff" speed={1.5} />
-        <BreathingLight position={[-4.5, 3.0, 2.5]} intensity={0.95} color="#b14bff" speed={1.2} />
-        <pointLight position={[5.0, 4.0, 3.5]} intensity={0.55} color="#4fa8ff" distance={12} decay={2} />
-        <pointLight position={[-2.0, 2.6, -5.0]} intensity={0.65} color="#ffaa55" distance={7} decay={2} />
+        <BreathingLight position={[3.2, 3.2, -5.0]} intensity={1.35} color="#00f0ff" speed={1.5} />
+        <BreathingLight position={[-5.4, 2.8, 3.8]} intensity={0.95} color="#b14bff" speed={1.15} />
+        <pointLight position={[5.8, 3.6, 4.2]} intensity={0.55} color="#4fa8ff" distance={11} decay={2} />
+        <pointLight position={[-1.4, 2.8, -5.4]} intensity={0.70} color="#ffaa55" distance={7} decay={2} />
 
         <ContactShadows
           position={[0, 0.05, 0]}
-          opacity={0.82}
-          scale={23}
-          blur={1.6}
+          opacity={0.78}
+          scale={22}
+          blur={1.65}
           far={11}
           resolution={2048}
           color="#000000"
         />
 
-        {/* The room stays physically fixed; only the camera and background provide depth. */}
         <Suspense fallback={null}>
           <Room onInteractDesk={onInteractDesk} />
         </Suspense>
 
         <OrbitControls
           enableDamping
-          dampingFactor={0.06}
+          dampingFactor={0.05}
           enableRotate={false}
           enablePan={false}
           enableZoom
           zoomSpeed={0.6}
-          minZoom={31}
-          maxZoom={58}
+          minZoom={29}
+          maxZoom={52}
           minPolarAngle={Math.PI / 4}
           maxPolarAngle={Math.PI / 4}
-          target={[0, 1.35, 0.30]}
+          target={[0, 0.65, 0.45]}
         />
 
         <EffectComposer enableNormalPass={false} multisampling={4}>
-          <Bloom mipmapBlur intensity={0.42} luminanceThreshold={0.70} luminanceSmoothing={0.25} />
+          <Bloom mipmapBlur intensity={0.40} luminanceThreshold={0.70} luminanceSmoothing={0.25} />
           <Vignette eskil={false} offset={0.15} darkness={0.50} />
           <ToneMapping />
         </EffectComposer>
