@@ -8,11 +8,11 @@ interface RoomProps {
 
 type V3 = [number, number, number];
 
-const FLOOR: V3 = [-Math.PI / 2, 0, 0];
-const BACK: V3 = [0, 0, 0];
-const LEFT: V3 = [0, Math.PI / 2, 0];
+const FLOOR_ROTATION: V3 = [-Math.PI / 2, 0, 0];
+const WALL_ROTATION: V3 = [0, 0, 0];
+const LEFT_WALL_ROTATION: V3 = [0, Math.PI / 2, 0];
 
-/** 1536x1024 atlas coordinates, measured from the supplied room-props.png. */
+/** Atlas coordinates for /public/assets/Rooms/room-props.png (1536x1024). */
 const C = {
   board: { x: 350, y: 22, width: 385, height: 302 },
   plant: { x: 744, y: 11, width: 116, height: 296 },
@@ -57,17 +57,62 @@ const C = {
   plantLarge: { x: 1409, y: 697, width: 122, height: 168 },
 } as const;
 
-const wallProps: Array<{ p: V3; c: keyof typeof C; h: number; r?: V3 }> = [
-  { p: [-2.65, 3.58, -4.69], c: 'board', h: 1.62 },
-  { p: [-0.25, 3.52, -4.68], c: 'window', h: 1.58 },
-  { p: [1.65, 3.54, -4.67], c: 'poster', h: 1.30 },
-  { p: [2.85, 3.05, -4.66], c: 'plant', h: 1.55 },
-  { p: [4.12, 2.75, -4.65], c: 'guitar', h: 1.78 },
-  { p: [3.02, 2.12, -4.64], c: 'wallShelf', h: 0.92 },
-  { p: [2.65, 1.55, -4.63], c: 'todo', h: 0.82 },
-  { p: [3.82, 1.50, -4.62], c: 'map', h: 0.98 },
-  { p: [-4.72, 3.28, -2.55], c: 'board', h: 1.12, r: LEFT },
-];
+function Block({
+  position,
+  size,
+  color,
+  y = 0,
+  roughness = 0.86,
+  metalness = 0,
+  emissive,
+  emissiveIntensity = 0,
+}: {
+  position: [number, number, number];
+  size: [number, number, number];
+  color: string;
+  y?: number;
+  roughness?: number;
+  metalness?: number;
+  emissive?: string;
+  emissiveIntensity?: number;
+}) {
+  return (
+    <mesh position={[position[0], position[1] + y, position[2]]} castShadow receiveShadow>
+      <boxGeometry args={size} />
+      <meshStandardMaterial
+        color={color}
+        roughness={roughness}
+        metalness={metalness}
+        emissive={emissive}
+        emissiveIntensity={emissiveIntensity}
+      />
+    </mesh>
+  );
+}
+
+function Leg({ x, z, h = 0.82 }: { x: number; z: number; h?: number }) {
+  return <Block position={[x, h / 2, z]} size={[0.16, h, 0.16]} color="#1c1518" roughness={0.92} />;
+}
+
+function WoodTable({ position, width, depth, height = 0.82 }: {
+  position: [number, number, number];
+  width: number;
+  depth: number;
+  height?: number;
+}) {
+  const [x, , z] = position;
+  return (
+    <group position={position}>
+      <Block position={[0, height - 0.08, 0]} size={[width + 0.16, 0.18, depth + 0.16]} color="#171114" />
+      <Block position={[0, height, 0]} size={[width, 0.14, depth]} color="#754c31" roughness={0.76} />
+      <Block position={[0, height + 0.075, 0]} size={[width - 0.12, 0.035, depth - 0.12]} color="#9a633c" roughness={0.72} />
+      <Leg x={x - width / 2 + 0.18} z={z - depth / 2 + 0.18} h={height - 0.04} />
+      <Leg x={x + width / 2 - 0.18} z={z - depth / 2 + 0.18} h={height - 0.04} />
+      <Leg x={x - width / 2 + 0.18} z={z + depth / 2 - 0.18} h={height - 0.04} />
+      <Leg x={x + width / 2 - 0.18} z={z + depth / 2 - 0.18} h={height - 0.04} />
+    </group>
+  );
+}
 
 export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
   const interactDesk = useCallback(() => onInteractDesk(), [onInteractDesk]);
@@ -75,269 +120,196 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
   return (
     <group>
       {/* ============================================================
-          2.5D FLOOR — layered so the room reads as a real diorama.
+          ARCHITECTURE / FLOOR RELIEF
+          The room is deliberately larger and built in layers so the
+          camera reads actual height instead of a single flat plane.
       ============================================================ */}
-      <mesh position={[0, -0.30, 0]} castShadow receiveShadow>
-        <boxGeometry args={[11.4, 0.48, 11.4]} />
-        <meshStandardMaterial color="#05060a" roughness={1} />
-      </mesh>
-      <mesh position={[0, -0.04, 0]} castShadow receiveShadow>
-        <boxGeometry args={[10.75, 0.20, 10.75]} />
-        <meshStandardMaterial color="#17141d" roughness={0.96} />
-      </mesh>
-      <mesh position={[0, 0.10, 0]} receiveShadow>
-        <boxGeometry args={[10.35, 0.10, 10.35]} />
-        <meshStandardMaterial color="#2a2531" roughness={0.92} />
-      </mesh>
-      {Array.from({ length: 10 }, (_, i) => (
-        <mesh key={i} position={[0, 0.17, -4.45 + i * 0.92]} receiveShadow>
-          <boxGeometry args={[9.95, 0.025, 0.035]} />
-          <meshStandardMaterial color="#514658" roughness={0.9} />
+      <Block position={[0, -0.48, 0]} size={[14.8, 0.72, 12.6]} color="#05070d" roughness={0.98} />
+      <Block position={[0, -0.05, 0]} size={[14.35, 0.20, 12.15]} color="#17131d" roughness={0.98} />
+      <Block position={[0, 0.08, 0]} size={[14.05, 0.12, 11.85]} color="#292331" roughness={0.94} />
+
+      {/* Floor planks */}
+      {Array.from({ length: 13 }, (_, i) => (
+        <mesh key={`plank-${i}`} position={[0, 0.16, -5.45 + i * 0.88]} receiveShadow>
+          <boxGeometry args={[13.55, 0.045, 0.035]} />
+          <meshStandardMaterial color={i % 2 ? '#45394a' : '#382f40'} roughness={0.92} />
+        </mesh>
+      ))}
+      {Array.from({ length: 12 }, (_, i) => (
+        <mesh key={`seam-${i}`} position={[-6.0 + i * 1.05, 0.175, 0]} receiveShadow>
+          <boxGeometry args={[0.025, 0.025, 11.25]} />
+          <meshStandardMaterial color="#1d1823" roughness={1} />
         </mesh>
       ))}
 
-      {/* Main rug: slightly smaller and shifted forward to preserve clear circulation. */}
-      <mesh position={[-0.55, 0.22, 1.25]} castShadow receiveShadow>
-        <boxGeometry args={[7.55, 0.16, 4.65]} />
-        <meshStandardMaterial color="#171520" roughness={1} />
-      </mesh>
-      <mesh position={[-0.55, 0.315, 1.25]} receiveShadow>
-        <boxGeometry args={[7.28, 0.035, 4.38]} />
-        <meshStandardMaterial color="#302b3b" roughness={1} />
-      </mesh>
-      <mesh position={[-0.55, 0.35, 1.25]}>
-        <boxGeometry args={[7.08, 0.018, 4.18]} />
-        <meshStandardMaterial color="#3c3549" roughness={1} />
-      </mesh>
+      {/* Raised perimeter / step */}
+      <Block position={[0, 0.25, -5.72]} size={[13.85, 0.16, 0.28]} color="#4a4051" />
+      <Block position={[-6.72, 0.25, 0]} size={[0.28, 0.16, 11.55]} color="#4a4051" />
+      <Block position={[6.72, 0.25, 0]} size={[0.28, 0.16, 11.55]} color="#4a4051" />
+      <Block position={[0, 0.25, 5.72]} size={[13.85, 0.16, 0.28]} color="#4a4051" />
 
-      {/* Neon perimeter. */}
-      {([[-4.68, 0.25, 0], [0, 0.25, -4.68], [0, 0.25, 4.68]] as V3[]).map((p, i) => (
-        <mesh key={i} position={p}>
-          <boxGeometry args={i === 0 ? [0.055, 0.035, 9.55] : [9.55, 0.035, 0.055]} />
-          <meshStandardMaterial color="#3182ff" emissive="#3182ff" emissiveIntensity={1.9} toneMapped={false} />
-        </mesh>
+      {/* Main rug, raised in three layers */}
+      <Block position={[-0.35, 0.30, 1.10]} size={[10.55, 0.18, 6.55]} color="#0f0e15" roughness={1} />
+      <Block position={[-0.35, 0.41, 1.10]} size={[10.22, 0.06, 6.22]} color="#2a2533" roughness={1} />
+      <Block position={[-0.35, 0.46, 1.10]} size={[9.98, 0.025, 5.98]} color="#3a3244" roughness={1} />
+      <Block position={[-0.35, 0.49, 1.10]} size={[9.62, 0.018, 5.62]} color="#25202e" roughness={1} />
+
+      {/* Neon recessed trim */}
+      <Block position={[0, 0.34, -5.48]} size={[12.7, 0.035, 0.045]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
+      <Block position={[-6.48, 0.34, 0]} size={[0.045, 0.035, 11.0]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
+      <Block position={[0, 0.34, 5.48]} size={[12.7, 0.035, 0.045]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
+      <Block position={[6.48, 0.34, 0]} size={[0.045, 0.035, 11.0]} color="#8ab8ff" emissive="#4d8dff" emissiveIntensity={2.2} />
+
+      {/* ============================================================ WALLS — thick shells + skirting + crown trim
+      ============================================================ */}
+      <Block position={[0, 3.35, -6.05]} size={[14.25, 6.7, 0.28]} color="#0a1222" roughness={0.98} />
+      <Block position={[-6.05, 3.35, 0]} size={[0.28, 6.7, 11.9]} color="#0e1729" roughness={0.98} />
+
+      <Block position={[0, 0.65, -5.83]} size={[13.85, 0.72, 0.24]} color="#080d17" roughness={1} />
+      <Block position={[-5.83, 0.65, 0]} size={[0.24, 0.72, 11.55]} color="#080d17" roughness={1} />
+      <Block position={[0, 6.63, -5.88]} size={[14.45, 0.22, 0.42]} color="#060910" roughness={0.96} />
+      <Block position={[-5.88, 6.63, 0]} size={[0.42, 0.22, 12.1]} color="#060910" roughness={0.96} />
+
+      {/* Wall vertical relief strips */}
+      {[-4.7, -1.5, 1.7, 4.9].map((x) => (
+        <Block key={`wall-strip-${x}`} position={[x, 3.35, -5.84]} size={[0.055, 5.85, 0.035]} color="#1b2b45" roughness={0.9} />
+      ))}
+      {[-4.2, -1.2, 1.8, 4.8].map((z) => (
+        <Block key={`left-strip-${z}`} position={[-5.84, 3.35, z]} size={[0.035, 5.85, 0.055]} color="#20314d" roughness={0.9} />
       ))}
 
-      {/* ============================================================ WALLS ============================================================ */}
-      <mesh position={[0, 2.55, -5]} receiveShadow>
-        <boxGeometry args={[10, 5.1, 0.22]} />
-        <meshStandardMaterial color="#0b1425" roughness={1} />
-      </mesh>
-      <mesh position={[-5, 2.55, 0]} receiveShadow>
-        <boxGeometry args={[0.22, 5.1, 10]} />
-        <meshStandardMaterial color="#101a2e" roughness={1} />
-      </mesh>
-      <mesh position={[0, 4.95, -4.84]} castShadow>
-        <boxGeometry args={[10.15, 0.20, 0.30]} />
-        <meshStandardMaterial color="#060911" roughness={0.94} />
-      </mesh>
-      <mesh position={[-4.84, 4.95, 0]} castShadow>
-        <boxGeometry args={[0.30, 0.20, 10.15]} />
-        <meshStandardMaterial color="#060911" roughness={0.94} />
-      </mesh>
-      <mesh position={[0, 0.58, -4.82]} receiveShadow>
-        <boxGeometry args={[9.72, 0.70, 0.18]} />
-        <meshStandardMaterial color="#080c16" roughness={0.98} />
-      </mesh>
-      <mesh position={[-4.82, 0.58, 0]} receiveShadow>
-        <boxGeometry args={[0.18, 0.70, 9.72]} />
-        <meshStandardMaterial color="#080c16" roughness={0.98} />
-      </mesh>
-
-      {/* ============================================================ WALL ART / PROPS ============================================================ */}
-      {wallProps.map(({ p, c, h, r = BACK }) => (
-        <RoomSprite
-          key={`${c}-${p.join('-')}`}
-          position={p}
-          crop={C[c]}
-          height={h}
-          rotation={r}
-          depthOffset={0.03}
-        />
-      ))}
-
-      {/* ============================================================ BED ZONE — back-left, flush against the left/back wall.
-          Its headboard is aligned to the same wall plane as the desk.
+      {/* ============================================================ BED ZONE — back-left, headboard flush to back wall
       ============================================================ */}
-      <group position={[-2.35, 0, -2.28]}>
-        <mesh position={[0, 0.18, 0]} castShadow receiveShadow>
-          <boxGeometry args={[3.72, 0.38, 3.34]} />
-          <meshStandardMaterial color="#090910" roughness={1} />
-        </mesh>
-        <mesh position={[0, 0.39, 0]} castShadow receiveShadow>
-          <boxGeometry args={[3.48, 0.18, 3.08]} />
-          <meshStandardMaterial color="#382426" roughness={0.88} />
-        </mesh>
-        <mesh position={[0, 0.50, 0]}>
-          <boxGeometry args={[3.30, 0.07, 2.90]} />
-          <meshStandardMaterial color="#69472f" roughness={0.80} />
-        </mesh>
-        <mesh position={[0, 0.98, -1.48]} castShadow receiveShadow>
-          <boxGeometry args={[3.42, 1.08, 0.24]} />
-          <meshStandardMaterial color="#3c2727" roughness={0.90} />
-        </mesh>
-        <mesh position={[0, 1.47, -1.57]} castShadow>
-          <boxGeometry args={[3.60, 0.18, 0.34]} />
-          <meshStandardMaterial color="#7e5638" roughness={0.74} />
-        </mesh>
-        <mesh position={[0, 1.34, -1.70]}>
-          <boxGeometry args={[3.18, 0.04, 0.025]} />
-          <meshStandardMaterial color="#b27848" />
-        </mesh>
-        <RoomSprite
-          position={[0, 0.58, 0.02]}
-          crop={C.bed}
-          height={2.58}
-          rotation={FLOOR}
-          depthOffset={0.07}
-        />
+      <group position={[-3.55, 0, -3.25]}>
+        <Block position={[0, 0.20, 0]} size={[4.25, 0.38, 3.55]} color="#08090f" roughness={1} />
+        <Block position={[0, 0.43, 0]} size={[4.02, 0.20, 3.32]} color="#3a2527" roughness={0.86} />
+        <Block position={[0, 0.56, 0]} size={[3.82, 0.06, 3.12]} color="#7c5135" roughness={0.78} />
+        <Block position={[0, 1.18, -1.57]} size={[3.90, 1.25, 0.28]} color="#392528" roughness={0.9} />
+        <Block position={[0, 1.78, -1.73]} size={[4.08, 0.18, 0.38]} color="#845839" roughness={0.74} />
+        <Block position={[0, 1.62, -1.86]} size={[3.72, 0.04, 0.035]} color="#bd7c4c" roughness={0.72} />
+        <RoomSprite position={[0, 0.62, 0.02]} crop={C.bed} height={2.85} rotation={FLOOR_ROTATION} depthOffset={0.08} />
       </group>
 
-      {/* Bedside table stays between bed and wall, not in the walkway. */}
-      <group position={[-0.15, 0, -3.60]}>
-        <mesh position={[0, 0.42, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.82, 0.78, 0.72]} />
-          <meshStandardMaterial color="#34201e" roughness={0.92} />
-        </mesh>
-        <mesh position={[0, 0.84, 0]} castShadow>
-          <boxGeometry args={[0.95, 0.12, 0.80]} />
-          <meshStandardMaterial color="#795039" roughness={0.78} />
-        </mesh>
-        <mesh position={[0, 1.18, 0]}>
-          <cylinderGeometry args={[0.045, 0.045, 0.28, 8]} />
-          <meshStandardMaterial color="#14131a" />
-        </mesh>
-        <mesh position={[0, 1.38, 0]}>
-          <coneGeometry args={[0.21, 0.23, 8]} />
-          <meshStandardMaterial color="#d88f45" emissive="#ff9f43" emissiveIntensity={0.4} />
-        </mesh>
-        <RoomSprite position={[0, 0.98, 0.20]} crop={C.coffee} height={0.27} depthOffset={0.02} />
-        <pointLight position={[0, 1.40, 0.08]} intensity={0.42} color="#ffb15a" distance={2.5} decay={2} />
+      {/* Bedside chest */}
+      <group position={[-0.35, 0, -5.02]}>
+        <Block position={[0, 0.48, 0]} size={[1.05, 0.86, 0.88]} color="#2d1d1d" roughness={0.92} />
+        <Block position={[0, 0.96, 0]} size={[1.18, 0.12, 0.98]} color="#795039" roughness={0.76} />
+        <Block position={[0, 0.56, 0.45]} size={[0.74, 0.035, 0.025]} color="#9d6841" />
+        <RoomSprite position={[0, 1.02, 0.02]} crop={C.coffee} height={0.30} rotation={FLOOR_ROTATION} />
       </group>
 
-      {/* ============================================================ DESK ZONE — back-right.
-          Narrower than before so it never overlaps the bed footprint.
+      {/* ============================================================ DESK ZONE — back-right, separate from bed by a clear aisle
       ============================================================ */}
-      <group position={[1.92, 0, -3.55]} onClick={interactDesk}>
-        <mesh position={[-1.68, 0.45, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.78, 0.80, 0.86]} />
-          <meshStandardMaterial color="#291918" roughness={0.94} />
-        </mesh>
-        <mesh position={[1.68, 0.45, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.78, 0.80, 0.86]} />
-          <meshStandardMaterial color="#291918" roughness={0.94} />
-        </mesh>
-        <mesh position={[0, 0.96, 0]} castShadow receiveShadow>
-          <boxGeometry args={[4.96, 0.22, 1.10]} />
-          <meshStandardMaterial color="#71492f" roughness={0.76} />
-        </mesh>
-        <mesh position={[0, 0.82, -0.53]}>
-          <boxGeometry args={[4.65, 0.13, 0.10]} />
-          <meshStandardMaterial color="#925e39" roughness={0.74} />
-        </mesh>
-        <mesh position={[0, 1.08, 0.43]}>
-          <boxGeometry args={[4.66, 0.07, 0.07]} />
-          <meshStandardMaterial color="#9f6c43" />
-        </mesh>
-        <mesh position={[0, 0.15, -0.43]}>
-          <boxGeometry args={[4.10, 0.05, 0.035]} />
-          <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={2.5} toneMapped={false} />
-        </mesh>
+      <group onClick={interactDesk}>
+        <WoodTable position={[2.55, 0, -4.48]} width={5.55} depth={1.28} height={1.05} />
+        <Block position={[2.55, 0.60, -4.47]} size={[4.75, 0.86, 0.12]} color="#2a1a1a" roughness={0.92} />
+        <Block position={[2.55, 0.88, -4.53]} size={[4.55, 0.045, 0.05]} color="#9d633e" roughness={0.72} />
 
-        <RoomSprite position={[-1.48, 1.30, -0.16]} crop={C.laptop} height={1.28} />
-        <RoomSprite position={[-0.42, 1.34, -0.18]} crop={C.monitor} height={1.18} />
-        <RoomSprite position={[0.68, 1.32, -0.18]} crop={C.sideMonitor} height={1.18} />
-        <RoomSprite position={[1.57, 1.18, -0.08]} crop={C.deskLamp} height={1.02} />
-        <RoomSprite position={[-0.34, 1.10, 0.18]} crop={C.keyboard} height={0.36} rotation={FLOOR} />
-        <RoomSprite position={[0.80, 1.10, 0.18]} crop={C.mousePad} height={0.30} rotation={FLOOR} />
-        <RoomSprite position={[1.35, 1.10, 0.18]} crop={C.mouse} height={0.26} rotation={FLOOR} />
-        <RoomSprite position={[1.86, 1.13, 0.20]} crop={C.camera} height={0.24} rotation={FLOOR} />
-        <RoomSprite position={[1.98, 1.12, 0.22]} crop={C.phone} height={0.25} rotation={FLOOR} />
-        <RoomSprite position={[1.60, 1.14, 0.22]} crop={C.pencilCup} height={0.30} rotation={FLOOR} />
+        {/* Monitors are vertical; desk accessories lie on the desktop. */}
+        <RoomSprite position={[1.10, 1.28, -4.98]} crop={C.laptop} height={1.02} depthOffset={0.04} />
+        <RoomSprite position={[2.40, 1.34, -4.98]} crop={C.monitor} height={1.38} depthOffset={0.05} />
+        <RoomSprite position={[3.72, 1.26, -4.97]} crop={C.sideMonitor} height={1.24} depthOffset={0.05} />
+        <RoomSprite position={[1.65, 1.09, -4.22]} crop={C.keyboard} height={0.36} rotation={FLOOR_ROTATION} />
+        <RoomSprite position={[2.95, 1.09, -4.18]} crop={C.mousePad} height={0.30} rotation={FLOOR_ROTATION} />
+        <RoomSprite position={[3.56, 1.09, -4.16]} crop={C.mouse} height={0.22} rotation={FLOOR_ROTATION} />
+        <RoomSprite position={[4.20, 1.12, -4.18]} crop={C.phone} height={0.28} rotation={FLOOR_ROTATION} />
+        <RoomSprite position={[4.55, 1.20, -4.16]} crop={C.camera} height={0.24} rotation={FLOOR_ROTATION} />
+        <RoomSprite position={[0.65, 1.15, -4.12]} crop={C.pencilCup} height={0.38} />
+        <RoomSprite position={[4.80, 1.55, -4.30]} crop={C.deskLamp} height={1.05} depthOffset={0.04} />
       </group>
 
-      {/* ============================================================ SOFA ZONE — front-left.
-          It is deliberately separated from the bed with a walking lane.
+      {/* ============================================================ LOUNGE ZONE — sofa + table + plants + games
       ============================================================ */}
-      <group position={[-3.05, 0, 1.78]} rotation={[0, 0, 0]}>
-        <mesh position={[0, 0.46, 0]} castShadow receiveShadow>
-          <boxGeometry args={[2.72, 0.72, 1.48]} />
-          <meshStandardMaterial color="#24202b" roughness={0.92} />
-        </mesh>
-        <mesh position={[0, 0.88, -0.50]} castShadow>
-          <boxGeometry args={[2.74, 0.96, 0.28]} />
-          <meshStandardMaterial color="#2d2835" roughness={0.92} />
-        </mesh>
-        <mesh position={[-1.34, 0.68, 0]} castShadow>
-          <boxGeometry args={[0.26, 1.04, 1.56]} />
-          <meshStandardMaterial color="#2d2835" roughness={0.92} />
-        </mesh>
-        <mesh position={[1.34, 0.68, 0]} castShadow>
-          <boxGeometry args={[0.26, 1.04, 1.56]} />
-          <meshStandardMaterial color="#2d2835" roughness={0.92} />
-        </mesh>
-        <mesh position={[0, 0.84, 0.16]}>
-          <boxGeometry args={[2.20, 0.08, 0.92]} />
-          <meshStandardMaterial color="#302b39" roughness={1} />
-        </mesh>
-        <RoomSprite position={[0, 1.01, 0.05]} crop={C.couchCats} height={0.70} rotation={FLOOR} depthOffset={0.03} />
+      <group position={[-3.95, 0, 2.55]}>
+        <Block position={[0, 0.62, 0]} size={[3.70, 1.12, 1.48]} color="#20202e" roughness={0.98} />
+        <Block position={[0, 1.24, -0.47]} size={[3.72, 0.84, 0.46]} color="#2c2b3d" roughness={0.96} />
+        <Block position={[-1.62, 0.66, 0]} size={[0.22, 1.26, 1.70]} color="#14141f" />
+        <Block position={[1.62, 0.66, 0]} size={[0.22, 1.26, 1.70]} color="#14141f" />
+        <Block position={[0, 0.12, 0.02]} size={[3.95, 0.16, 1.72]} color="#11111a" />
+        <RoomSprite position={[0, 1.43, -0.68]} crop={C.couchCats} height={1.00} />
       </group>
 
-      {/* ============================================================ COFFEE TABLE — center/front.
-          Low enough to read as furniture without blocking the player.
+      {/* Lounge rug relief */}
+      <Block position={[-3.95, 0.57, 2.55]} size={[4.35, 0.08, 2.12]} color="#171521" roughness={1} />
+      <Block position={[-3.95, 0.62, 2.55]} size={[4.10, 0.035, 1.88]} color="#3a3043" roughness={1} />
+
+      {/* Coffee table */}
+      <WoodTable position={[-0.85, 0, 2.52]} width={2.60} depth={1.48} height={0.78} />
+      <RoomSprite position={[-1.45, 0.89, 2.52]} crop={C.burger} height={0.28} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[-0.80, 0.89, 2.52]} crop={C.pizza} height={0.27} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[-0.18, 0.89, 2.45]} crop={C.bowl} height={0.28} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[-0.95, 0.90, 2.93]} crop={C.drink} height={0.30} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[-0.35, 0.90, 2.95]} crop={C.glass} height={0.28} rotation={FLOOR_ROTATION} />
+
+      {/* ============================================================ WORK / HOBBY ZONE — table + chair + props
+      ============================================================ */
+      <WoodTable position={[3.25, 0, 2.62]} width={3.05} depth={1.82} height={0.84} />
+      <Block position={[3.25, 0.47, 3.36]} size={[2.65, 0.72, 0.12]} color="#25191a" />
+      <RoomSprite position={[2.35, 0.93, 2.35]} crop={C.ideas} height={0.44} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[3.10, 0.93, 2.30]} crop={C.cameraLarge} height={0.42} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[3.90, 0.93, 2.30]} crop={C.books} height={0.40} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[3.45, 0.93, 2.92]} crop={C.globe} height={0.32} rotation={FLOOR_ROTATION} />
+
+      {/* Chair */}
+      <group position={[3.25, 0, 4.08]}>
+        <Block position={[0, 0.55, 0]} size={[1.18, 0.18, 1.10]} color="#533624" roughness={0.8} />
+        <Block position={[0, 1.18, 0.42]} size={[1.10, 1.20, 0.18]} color="#2b2228" roughness={0.94} />
+        <Leg x={-0.42} z={-0.38} h={0.50} />
+        <Leg x={0.42} z={-0.38} h={0.50} />
+        <Leg x={-0.42} z={0.38} h={0.50} />
+        <Leg x={0.42} z={0.38} h={0.50} />
+      </group>
+
+      {/* ============================================================ STORAGE / MEDIA ZONE — right wall, organized shelf
       ============================================================ */}
-      <group position={[0.05, 0, 1.72]}>
-        <mesh position={[0, 0.54, 0]} castShadow receiveShadow>
-          <boxGeometry args={[2.35, 0.18, 1.42]} />
-          <meshStandardMaterial color="#70472e" roughness={0.78} />
-        </mesh>
-        <mesh position={[0, 0.28, 0]}>
-          <boxGeometry args={[1.86, 0.10, 0.92]} />
-          <meshStandardMaterial color="#3a2523" roughness={0.90} />
-        </mesh>
-        {([-0.92, 0.92] as number[]).map((x) => (
-          <React.Fragment key={x}>
-            <mesh position={[x, 0.28, -0.50]}><boxGeometry args={[0.13, 0.55, 0.13]} /><meshStandardMaterial color="#4b2f26" /></mesh>
-            <mesh position={[x, 0.28, 0.50]}><boxGeometry args={[0.13, 0.55, 0.13]} /><meshStandardMaterial color="#4b2f26" /></mesh>
-          </React.Fragment>
-        ))}
-        <RoomSprite position={[-0.72, 0.66, 0]} crop={C.burger} height={0.34} rotation={FLOOR} />
-        <RoomSprite position={[0.10, 0.66, 0.05]} crop={C.pizza} height={0.30} rotation={FLOOR} />
-        <RoomSprite position={[0.75, 0.67, 0.02]} crop={C.drink} height={0.34} rotation={FLOOR} />
-        <RoomSprite position={[0.45, 0.66, -0.38]} crop={C.glass} height={0.30} rotation={FLOOR} />
+      <group position={[5.10, 0, 1.25]}>
+        <Block position={[0, 0.90, 0]} size={[1.36, 1.80, 0.90]} color="#21171a" roughness={0.94} />
+        <Block position={[0, 0.34, -0.47]} size={[1.52, 0.10, 1.04]} color="#754b32" roughness={0.78} />
+        <Block position={[0, 0.92, -0.47]} size={[1.52, 0.10, 1.04]} color="#754b32" roughness={0.78} />
+        <Block position={[0, 1.50, -0.47]} size={[1.52, 0.10, 1.04]} color="#754b32" roughness={0.78} />
+        <RoomSprite position={[0, 1.86, -0.02]} crop={C.plantLarge} height={0.90} />
+        <RoomSprite position={[-0.35, 0.68, -0.51]} crop={C.books} height={0.44} />
+        <RoomSprite position={[0.34, 0.68, -0.51]} crop={C.console} height={0.32} />
+        <RoomSprite position={[0.25, 1.26, -0.51]} crop={C.photo} height={0.35} />
       </group>
 
-      {/* ============================================================ STORAGE / HOBBY ZONE — front-right.
+      {/* Backpack + skateboard are parked together beside the lounge. */}
+      <RoomSprite position={[-5.12, 0.72, 2.55]} crop={C.skateboard} height={1.72} depthOffset={0.02} />
+      <RoomSprite position={[-4.78, 0.72, 1.42]} crop={C.backpack} height={0.92} />
+
+      {/* Small floor details deliberately grouped rather than scattered. */}
+      <RoomSprite position={[1.55, 0.42, 4.86]} crop={C.pinkNote} height={0.52} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[2.25, 0.42, 4.86]} crop={C.purpleNote} height={0.50} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[2.90, 0.42, 4.86]} crop={C.greenNote} height={0.48} rotation={FLOOR_ROTATION} />
+      <RoomSprite position={[4.10, 0.42, 4.75]} crop={C.sleepingCats} height={0.72} rotation={FLOOR_ROTATION} />
+
+      {/* ============================================================ WALL DECORATION
       ============================================================ */}
-      <group position={[3.02, 0, 1.95]}>
-        <mesh position={[0, 0.78, 0]} castShadow receiveShadow>
-          <boxGeometry args={[1.55, 1.56, 0.78]} />
-          <meshStandardMaterial color="#2c1d20" roughness={0.90} />
-        </mesh>
-        {[0.30, 0.72, 1.14].map((y) => (
-          <mesh key={y} position={[0, y, 0.41]}>
-            <boxGeometry args={[1.48, 0.045, 0.035]} />
-            <meshStandardMaterial color="#815538" roughness={0.76} />
-          </mesh>
-        ))}
-        <RoomSprite position={[-0.35, 1.66, 0.48]} crop={C.books} height={0.55} rotation={FLOOR} />
-        <RoomSprite position={[0.36, 1.66, 0.48]} crop={C.plantLarge} height={0.72} rotation={FLOOR} />
-        <RoomSprite position={[0, 1.70, 0.50]} crop={C.cameraLarge} height={0.54} rotation={FLOOR} />
-      </group>
+      <RoomSprite position={[-3.80, 4.72, -5.84]} crop={C.board} height={1.72} rotation={WALL_ROTATION} />
+      <RoomSprite position={[-1.10, 4.55, -5.84]} crop={C.window} height={1.48} rotation={WALL_ROTATION} />
+      <RoomSprite position={[0.75, 4.48, -5.84]} crop={C.poster} height={1.26} rotation={WALL_ROTATION} />
+      <RoomSprite position={[2.20, 4.35, -5.82]} crop={C.plant} height={1.54} rotation={WALL_ROTATION} />
+      <RoomSprite position={[4.28, 3.72, -5.80]} crop={C.guitar} height={1.86} rotation={WALL_ROTATION} />
+      <RoomSprite position={[3.72, 2.70, -5.79]} crop={C.wallShelf} height={0.86} rotation={WALL_ROTATION} />
+      <RoomSprite position={[2.92, 2.05, -5.78]} crop={C.todo} height={0.82} rotation={WALL_ROTATION} />
+      <RoomSprite position={[4.58, 2.00, -5.78]} crop={C.map} height={0.92} rotation={WALL_ROTATION} />
 
-      {/* Hobby corner: skateboard + backpack are leaned against the left wall, not scattered. */}
-      <RoomSprite position={[-4.18, 0.78, 1.12]} crop={C.skateboard} height={1.55} rotation={[0, 0, -0.18]} depthOffset={0.06} />
-      <RoomSprite position={[-3.78, 0.48, 0.35]} crop={C.backpack} height={0.86} rotation={FLOOR} depthOffset={0.05} />
+      {/* Second visual layer on left wall creates depth and balances the room. */}
+      <RoomSprite position={[-5.80, 4.25, -1.35]} crop={C.board} height={1.30} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
+      <RoomSprite position={[-5.79, 3.10, 1.35]} crop={C.cityPrint} height={0.68} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
+      <RoomSprite position={[-5.78, 2.65, 2.45]} crop={C.pinkNote} height={0.50} rotation={LEFT_WALL_ROTATION} depthOffset={0.03} />
 
-      {/* Small decorative props around the living area. */}
-      <RoomSprite position={[-1.18, 0.68, 1.78]} crop={C.bowl} height={0.32} rotation={FLOOR} />
-      <RoomSprite position={[-0.92, 0.66, 2.24]} crop={C.coffee} height={0.25} rotation={FLOOR} />
-      <RoomSprite position={[1.62, 0.66, 2.22]} crop={C.ideas} height={0.44} rotation={FLOOR} />
-      <RoomSprite position={[2.30, 0.66, 2.24]} crop={C.photo} height={0.35} rotation={FLOOR} />
-      <RoomSprite position={[2.82, 0.67, 2.24]} crop={C.console} height={0.28} rotation={FLOOR} />
+      {/* Warm practical lights reinforce furniture depth. */}
+      <pointLight position={[-0.35, 1.35, -4.55]} intensity={0.55} color="#ffad62" distance={3.2} decay={2} />
+      <pointLight position={[4.65, 1.60, -4.35]} intensity={0.75} color="#38bdf8" distance={3.4} decay={2} />
+      <pointLight position={[-4.65, 2.00, 2.20]} intensity={0.35} color="#a855f7" distance={3.2} decay={2} />
 
-      {/* Player remains in the main circulation lane. */}
-      <Player onInteractDesk={interactDesk} />
+      <Player
+        onInteractDesk={onInteractDesk}
+        initialPosition={[0, 0, 0.45]}
+        deskPosition={[2.55, -4.48]}
+        speed={2.55}
+      />
     </group>
   );
 });
