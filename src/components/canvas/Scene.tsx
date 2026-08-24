@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { ContactShadows, Preload } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette, ToneMapping } from '@react-three/postprocessing';
 import * as THREE from 'three';
-import { Player } from './Player';
+import { Player, type InteractionZoneId } from './Player';
 import { Room } from './Room';
 
 /* =========================================================
@@ -11,7 +11,8 @@ import { Room } from './Room';
    ========================================================= */
 
 interface SceneProps {
-  onInteractDesk: () => void;
+  onInteract: (zoneId: InteractionZoneId) => void;
+  onNearbyZoneChange?: (zoneId: InteractionZoneId | null) => void;
 }
 
 /* =========================================================
@@ -64,15 +65,18 @@ const BreathingLight: React.FC<{
    =========================================================
 
    Cámara orthográfica que sigue al jugador de cerca, con un
-   ángulo bastante cenital (≈57° de elevación), al estilo de un
-   juego 2.5D top-down: ya NO intenta encuadrar el cuarto
-   completo, sino una porción cercana alrededor del personaje.
+   ángulo bajo/"pegado al piso" (≈28° de elevación, no cenital)
+   al estilo de un juego 2.5D top-down: ya NO intenta encuadrar
+   el cuarto completo, sino una porción cercana alrededor del
+   personaje.
    ========================================================= */
 
-// Ángulo del rig: y+7.4, z+4.8 ⇒ ≈57° de elevación (más cenital
-// que el rig anterior, que era ≈38.5°).
-const CAM_OFFSET_Y = 7.4;
-const CAM_OFFSET_Z = 4.8;
+// Ángulo del rig: y+4.5, z+8.5 ⇒ ≈28° de elevación. Ojo: subir Y
+// o bajar Z INCLINA LA CÁMARA HACIA ABAJO (más top-down); para el
+// look "pegado al piso" que se busca aquí hay que ir al revés
+// (Y más chico, Z más grande).
+const CAM_OFFSET_Y = 4.5;
+const CAM_OFFSET_Z = 8.5;
 
 // Zoom base de la cámara cercana (en "unidades de zoom por cada
 // 720px de alto de viewport"), calibrado para encuadrar al jugador
@@ -103,7 +107,13 @@ const CameraRig: React.FC<{
       lookAtTarget.z + CAM_OFFSET_Z,
     );
 
-    camera.position.lerp(desiredPosition, 1 - Math.exp(-delta * 3.2));
+    // Cámara "fija" respecto al jugador: sin lerp de posición. El
+    // suavizado (lerp) que había antes generaba un pequeño retraso
+    // constante entre el personaje y el encuadre — con la cámara
+    // tan cerca eso se sentía como mareo. Ahora el offset se aplica
+    // directo cada frame, así el jugador siempre queda anclado en
+    // el mismo punto de pantalla.
+    camera.position.copy(desiredPosition);
     camera.lookAt(lookAtTarget);
 
     if (camera instanceof THREE.OrthographicCamera) {
@@ -190,7 +200,7 @@ const DynamicRoomLights: React.FC = () => {
    SCENE
    ========================================================= */
 
-export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => {
+export const Scene: React.FC<SceneProps> = ({ onInteract, onNearbyZoneChange }) => {
   const [playerPosition, setPlayerPosition] = useState<
     [number, number, number]
   >([0, 0.115, 2.7]);
@@ -295,14 +305,14 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => {
               dentro de <Room>, lo que duplicaba el personaje en
               pantalla — ya se quitó de Room.tsx. */}
           <Player
-            onInteractDesk={onInteractDesk}
+            onInteract={onInteract}
+            onNearbyZoneChange={onNearbyZoneChange}
             initialPosition={[0, 0.115, 2.7]}
-            deskPosition={[3.25, -4.9]}
             onPositionChange={setPlayerPosition}
             speed={2.55}
           />
 
-          <Room onInteractDesk={onInteractDesk} />
+          <Room onInteract={onInteract} />
         </Suspense>
 
         <CameraRig playerPosition={playerPosition} />

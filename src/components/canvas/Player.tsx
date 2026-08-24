@@ -3,15 +3,32 @@ import { useFrame } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { useKeyboardControls } from '../../hooks/useKeyboardControls';
+import { useControlsStore } from '../../store/controls';
 
 type Direction = 'down' | 'up' | 'left' | 'right';
 
+export type InteractionZoneId = 'projects' | 'skills' | 'about' | 'contact';
+
 interface Interactable {
-  id: string;
+  id: InteractionZoneId;
   position: [number, number];
   radius: number;
-  onInteract: () => void;
 }
+
+// Las 4 zonas interactuables del cuarto — ancladas a las mismas
+// posiciones de los muebles en Room.tsx (escritorio, librero, sofá,
+// armario). Un solo callback (`onInteract`) recibe el id de la zona;
+// App.tsx decide qué contenido mostrar.
+const INTERACTION_ZONES: Interactable[] = [
+  // El escritorio (4.2x2.2) es grande y la silla está en z=-3.12,
+  // lejos del centro real del mueble (z=-4.9) — el punto de la zona
+  // se corre hacia el lado de la silla para que "sentarse a
+  // trabajar" sí quede dentro del radio.
+  { id: 'projects', position: [3.25, -3.9], radius: 1.6 },
+  { id: 'skills', position: [6.9, -6.6], radius: 1.4 },
+  { id: 'about', position: [-5.16, 4.6], radius: 1.7 },
+  { id: 'contact', position: [-6.8, -5.9], radius: 1.4 },
+];
 
 interface RoomCollider {
   id: string;
@@ -23,11 +40,10 @@ interface RoomCollider {
 }
 
 interface PlayerProps {
-  onInteractDesk: () => void;
+  onInteract: (zoneId: InteractionZoneId) => void;
+  onNearbyZoneChange?: (zoneId: InteractionZoneId | null) => void;
   initialPosition?: [number, number, number];
   speed?: number;
-  deskPosition?: [number, number];
-  interactRadius?: number;
   showGroundShadow?: boolean;
   castShadow?: boolean;
   onPositionChange?: (position: [number, number, number]) => void;
@@ -84,13 +100,6 @@ const walkSidePaths = walkSideFiles.map(
 );
 
 const DEFAULT_SPEED = 2.55;
-
-const DEFAULT_DESK_POSITION: [number, number] = [
-  3.25,
-  -4.90,
-];
-
-const DEFAULT_INTERACT_RADIUS = 1.35;
 
 const SPRITE_HEIGHT = 1.6;
 
@@ -575,17 +584,14 @@ function moveWithCollisions(
 }
 
 export const Player: React.FC<PlayerProps> = ({
-  onInteractDesk,
+  onInteract,
+  onNearbyZoneChange,
   initialPosition = [
     0,
     LOWER_FLOOR_Y,
     2.70,
   ],
   speed = DEFAULT_SPEED,
-  deskPosition =
-    DEFAULT_DESK_POSITION,
-  interactRadius =
-    DEFAULT_INTERACT_RADIUS,
   showGroundShadow = true,
   castShadow = true,
   onPositionChange,
@@ -613,8 +619,7 @@ export const Player: React.FC<PlayerProps> = ({
   const pulseTimer =
     useRef(0);
 
-  const movement =
-    useKeyboardControls();
+  useKeyboardControls();
 
   const idleFrontTextures =
     useTexture(
@@ -710,23 +715,15 @@ export const Player: React.FC<PlayerProps> = ({
   const wasInteractPressed =
     useRef(false);
 
-  const interactables =
-    useMemo<Interactable[]>(
-      () => [
-        {
-          id: 'desk',
-          position: deskPosition,
-          radius: interactRadius,
-          onInteract:
-            onInteractDesk,
-        },
-      ],
-      [
-        deskPosition,
-        interactRadius,
-        onInteractDesk,
-      ],
+  const nearbyZone =
+    useRef<InteractionZoneId | null>(
+      null,
     );
+
+  const lastInteractTarget =
+    useRef<[number, number]>([
+      0, 0,
+    ]);
 
   const getAnimState = (
     direction: Direction,
@@ -807,36 +804,46 @@ export const Player: React.FC<PlayerProps> = ({
       const position =
         groupRef.current.position;
 
+      const { keyboard, touch } =
+        useControlsStore.getState();
+
       let moveX = 0;
       let moveZ = 0;
 
-      if (
-        movement.moveBackward
-      ) {
+      if (keyboard.moveBackward) {
         moveZ += 1;
       }
 
-      if (
-        movement.moveForward
-      ) {
+      if (keyboard.moveForward) {
         moveZ -= 1;
       }
 
-      if (
-        movement.moveLeft
-      ) {
+      if (keyboard.moveLeft) {
         moveX -= 1;
       }
 
-      if (
-        movement.moveRight
-      ) {
+      if (keyboard.moveRight) {
         moveX += 1;
       }
 
+      moveX += touch.x;
+      moveZ += touch.z;
+
+      moveX = THREE.MathUtils.clamp(
+        moveX,
+        -1,
+        1,
+      );
+
+      moveZ = THREE.MathUtils.clamp(
+        moveZ,
+        -1,
+        1,
+      );
+
       const isMoving =
-        moveX !== 0 ||
-        moveZ !== 0;
+        Math.hypot(moveX, moveZ) >
+        0.05;
 
       if (isMoving) {
         const length =
@@ -1006,37 +1013,63 @@ export const Player: React.FC<PlayerProps> = ({
       spriteRef.current.position.y =
         SPRITE_HEIGHT / 2 + bobOffset;
 
+      const interactHeld =
+        keyboard.interact ||
+        touch.interact;
+
       const interactJustPressed =
-        movement.interact &&
+        interactHeld &&
         !wasInteractPressed.current;
 
       wasInteractPressed.current =
-        movement.interact;
+        interactHeld;
 
-      if (interactJustPressed) {
-        for (
-          const target of interactables
+      let closestZone: InteractionZoneId | null =
+        null;
+
+      for (
+        const zone of INTERACTION_ZONES
+      ) {
+        const distance =
+          Math.hypot(
+            position.x -
+              zone.position[0],
+            position.z -
+              zone.position[1],
+          );
+
+        if (
+          distance <=
+          zone.radius
         ) {
-          const distance =
-            Math.hypot(
-              position.x -
-                target.position[0],
-              position.z -
-                target.position[1],
-            );
+          closestZone = zone.id;
 
           if (
-            distance <=
-            target.radius
+            interactJustPressed
           ) {
-            target.onInteract();
+            onInteract(zone.id);
+
+            lastInteractTarget.current =
+              zone.position;
 
             pulseTimer.current =
               INTERACTION_PULSE_DURATION;
-
-            break;
           }
+
+          break;
         }
+      }
+
+      if (
+        closestZone !==
+        nearbyZone.current
+      ) {
+        nearbyZone.current =
+          closestZone;
+
+        onNearbyZoneChange?.(
+          closestZone,
+        );
       }
 
       if (pulseRef.current) {
@@ -1074,20 +1107,24 @@ export const Player: React.FC<PlayerProps> = ({
           );
 
           pulseRef.current.position.set(
-            deskPosition[0] -
+            lastInteractTarget
+              .current[0] -
               position.x,
 
             Math.max(
               0.05,
               getTargetHeight(
-                deskPosition[0],
-                deskPosition[1],
+                lastInteractTarget
+                  .current[0],
+                lastInteractTarget
+                  .current[1],
               ) -
                 position.y +
                 0.06,
             ),
 
-            deskPosition[1] -
+            lastInteractTarget
+              .current[1] -
               position.z,
           );
 

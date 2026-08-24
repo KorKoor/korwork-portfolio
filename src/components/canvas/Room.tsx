@@ -1,8 +1,9 @@
 import React, { useCallback, useMemo } from 'react';
 import { RoomSprite } from './RoomProps';
+import type { InteractionZoneId } from './Player';
 
 interface RoomProps {
-  onInteractDesk: () => void;
+  onInteract: (zoneId: InteractionZoneId) => void;
 }
 
 type V3 = [number, number, number];
@@ -693,8 +694,11 @@ function WallPanel({
    cámara. Tenerlo también aquí duplicaba al personaje en pantalla.
 ============================================================ */
 
-export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
-  const interactDesk = useCallback(() => onInteractDesk(), [onInteractDesk]);
+export const Room: React.FC<RoomProps> = React.memo(({ onInteract }) => {
+  const interactProjects = useCallback(() => onInteract('projects'), [onInteract]);
+  const interactSkills = useCallback(() => onInteract('skills'), [onInteract]);
+  const interactAbout = useCallback(() => onInteract('about'), [onInteract]);
+  const interactContact = useCallback(() => onInteract('contact'), [onInteract]);
 
   const floorPattern = useMemo(() => Array.from({ length: 20 }, (_, i) => i), []);
   const verticalSeams = useMemo(() => Array.from({ length: 16 }, (_, i) => i), []);
@@ -805,32 +809,33 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
         <Block position={[0, 0.04, 0]} size={[4.4, 0.02, 3.8]} color="#2a1f30" roughness={1} />
         <Block position={[0, 0.05, 0]} size={[4.3, 0.01, 3.7]} color="#3a2c42" roughness={1} />
 
-        <Leg offsetX={-1.8} offsetZ={-1.5} h={0.3} thickness={0.2} />
-        <Leg offsetX={1.8} offsetZ={-1.5} h={0.3} thickness={0.2} />
-        <Leg offsetX={-1.8} offsetZ={1.5} h={0.3} thickness={0.2} />
-        <Leg offsetX={1.8} offsetZ={1.5} h={0.3} thickness={0.2} />
+        {/* Base baja bajo el colchón — el sprite C.bed ya trae su
+            propio respaldo, almohadas y cobija dibujados, así que
+            aquí solo necesitamos un bloque discreto (mismo tono que
+            la cobija) para que la cama no "flote" sobre el piso.
+            Antes había un respaldo, almohadas y cobija en bloques
+            3D sueltos que sobresalían del sprite por todos lados
+            con colores que no pegaban — se veía como dos camas
+            encimadas. */}
+        <Block position={[0, 0.32, 0.15]} size={[2.3, 0.55, 2.05]} color="#151225" roughness={0.95} />
 
-        <Block position={[0, 0.35, 0]} size={[3.8, 0.2, 3.0]} color="#08090f" roughness={1} />
-        <Block position={[0, 0.55, 0]} size={[3.6, 0.3, 2.8]} color="#3a2527" roughness={0.86} />
-        <Block position={[0, 0.72, 0]} size={[3.4, 0.08, 2.6]} color="#7c5135" roughness={0.78} />
+        {/* La cámara quedó muy baja/rasante (~28°) para el look
+            "pegado al piso" — a ese ángulo un sprite plano acostado
+            se ve aplastado en profundidad (es pura proyección: a
+            menor ángulo, menos "alto" se ve lo que está tirado en
+            el piso). Se compensa estirando el sprite en Z dentro de
+            un grupo aparte, para no mover su centro. */}
+        <group position={[0, 0, 0.2]}>
+          <group scale={[1, 1, 1.5]}>
+            <RoomSprite position={[0, 0.85, 0]} crop={C.bed} height={2.0} rotation={FLOOR_ROTATION} depthOffset={0.08} />
+          </group>
+        </group>
 
-        <Block position={[0, 1.2, -1.5]} size={[3.8, 1.2, 0.28]} color="#392528" roughness={0.9} />
-        <Block position={[0, 1.85, -1.5]} size={[3.9, 0.1, 0.35]} color="#2a1a1b" roughness={0.9} />
-        <Block position={[-1.2, 1.4, -1.35]} size={[0.1, 0.8, 0.05]} color="#2a1a1b" roughness={0.9} />
-        <Block position={[1.2, 1.4, -1.35]} size={[0.1, 0.8, 0.05]} color="#2a1a1b" roughness={0.9} />
-
-        <Block position={[-0.8, 0.85, -1.2]} size={[0.9, 0.15, 0.6]} color="#5a3a3a" roughness={0.8} />
-        <Block position={[0.8, 0.85, -1.2]} size={[0.9, 0.15, 0.6]} color="#5a3a3a" roughness={0.8} />
-        <Block position={[-0.8, 0.93, -1.2]} size={[0.8, 0.08, 0.5]} color="#6a4a4a" roughness={0.8} />
-        <Block position={[0.8, 0.93, -1.2]} size={[0.8, 0.08, 0.5]} color="#6a4a4a" roughness={0.8} />
-
-        <Block position={[0, 0.85, 0.8]} size={[2.0, 0.08, 0.8]} color={COLORS.purple} roughness={0.8} />
-        <Block position={[0, 0.85, 1.1]} size={[2.0, 0.05, 0.2]} color="#7c4cf6" roughness={0.8} />
-
-        <RoomSprite position={[0, 0.85, 0.2]} crop={C.bed} height={2.0} rotation={FLOOR_ROTATION} depthOffset={0.08} />
-        <RoomSprite position={[0, 0.9, 0.3]} crop={C.sleepingCats} height={0.8} rotation={FLOOR_ROTATION} depthOffset={0.02} />
-
-        <Hitbox position={[0, 0.6, 0]} size={[3.8, 1.2, 3.0]} />
+        {/* Antes 3.8x3.0 — mucho más grande que el sprite real
+            (~2.26x2.0), dejaba un pasillo de apenas ~0.4 unidades
+            hacia el armario (menos que el diámetro del jugador) y
+            bloqueaba el paso por completo. */}
+        <Hitbox position={[0, 0.6, 0]} size={[2.5, 1.2, 2.2]} />
       </group>
 
       {/* Mesita de noche (ancla original) */}
@@ -851,7 +856,9 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
           "back-wall", así que no genera zonas atravesables. Se quitó
           la Dresser y la SideTable sueltas que SÍ sobresalían de
           cualquier collider (el jugador las atravesaba). */}
-      <Wardrobe position={[-7.0, 0.565, -5.9]} width={1.75} height={2.5} depth={0.65} rotation={Math.PI / 2} />
+      <group onClick={interactContact}>
+        <Wardrobe position={[-7.0, 0.565, -5.9]} width={1.75} height={2.5} depth={0.65} rotation={Math.PI / 2} />
+      </group>
       <RoomSprite position={[-7.55, 2.0, -1.8]} crop={H.hoodie} sheet="house" height={0.6} rotation={LEFT_WALL_ROTATION} depthOffset={0.02} />
 
       {/* Mochila y patineta — reposicionadas para coincidir EXACTAMENTE
@@ -870,7 +877,7 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
           5. ESCRITORIO GAMING (ancla física: 3.25, 0.565, -4.90)
       ====================================================== */}
 
-      <group position={[3.25, 0.565, -4.9]} onClick={interactDesk}>
+      <group position={[3.25, 0.565, -4.9]} onClick={interactProjects}>
         <WoodTable position={[0, 0, 0]} width={4.2} depth={2.2} height={1.05} />
 
         <Block position={[1.7, 1.05, -0.8]} size={[0.6, 0.5, 0.6]} color="#0f0f0f" roughness={0.4} metalness={0.6} />
@@ -908,7 +915,9 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
       {/* Z corregido a -7.05 (antes -6.6): con depth=0.42 el librero
           sobresalía ~1.15 m fuera del colchón de "back-wall"
           (Z -7.34/-6.70), quedando parcialmente atravesable. */}
-      <Bookcase position={[6.9, 0.565, -7.05]} width={1.5} height={2.2} depth={0.42} />
+      <group onClick={interactSkills}>
+        <Bookcase position={[6.9, 0.565, -7.05]} width={1.5} height={2.2} depth={0.42} />
+      </group>
       <RoomSprite position={[6.9, 2.85, -7.05]} crop={H.aquarium} sheet="house" height={0.45} rotation={FLOOR_ROTATION} />
 
       <RoomSprite position={[7.6, 5.5, -3.5]} crop={C.todo} height={1.0} rotation={RIGHT_WALL_ROTATION} depthOffset={0.02} />
@@ -930,7 +939,7 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
 
       {/* ---- Sala de estar (ancla física: -5.16, 0.115, 4.33) ---- */}
 
-      <group position={[-5.16, 0.115, 4.33]}>
+      <group position={[-5.16, 0.115, 4.33]} onClick={interactAbout}>
         <Block position={[0, 0.03, 0]} size={[4.5, 0.06, 3.5]} color="#1a1520" roughness={1} />
         <Block position={[0, 0.05, 0]} size={[4.4, 0.02, 3.4]} color="#251c2e" roughness={1} />
 

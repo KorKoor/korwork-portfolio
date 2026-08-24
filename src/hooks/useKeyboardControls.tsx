@@ -1,63 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useControlsStore } from '../store/controls';
 
+const KEY_MAP: Record<string, 'moveForward' | 'moveBackward' | 'moveLeft' | 'moveRight' | 'interact'> = {
+  KeyW: 'moveForward',
+  ArrowUp: 'moveForward',
+  KeyS: 'moveBackward',
+  ArrowDown: 'moveBackward',
+  KeyA: 'moveLeft',
+  ArrowLeft: 'moveLeft',
+  KeyD: 'moveRight',
+  ArrowRight: 'moveRight',
+  KeyE: 'interact',
+  Space: 'interact',
+};
+
+/**
+ * Escucha el teclado y escribe directo al store de controles (sin
+ * useState): evita re-renders en cada tecla, Player lee el resultado
+ * combinado (teclado + touch) vía getState() dentro de useFrame.
+ */
 export const useKeyboardControls = () => {
-  const [movement, setMovement] = useState({
-    moveForward: false,
-    moveBackward: false,
-    moveLeft: false,
-    moveRight: false,
-    interact: false,
-  });
-
   useEffect(() => {
+    const setKey = useControlsStore.getState().setKeyboardKey;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          setMovement((m) => ({ ...m, moveForward: true }));
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          setMovement((m) => ({ ...m, moveBackward: true }));
-          break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          setMovement((m) => ({ ...m, moveLeft: true }));
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          setMovement((m) => ({ ...m, moveRight: true }));
-          break;
-        case 'KeyE':
-        case 'Space':
-          setMovement((m) => ({ ...m, interact: true }));
-          break;
-      }
+      const key = KEY_MAP[e.code];
+      if (key) setKey(key, true);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          setMovement((m) => ({ ...m, moveForward: false }));
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          setMovement((m) => ({ ...m, moveBackward: false }));
-          break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          setMovement((m) => ({ ...m, moveLeft: false }));
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          setMovement((m) => ({ ...m, moveRight: false }));
-          break;
-        case 'KeyE':
-        case 'Space':
-          setMovement((m) => ({ ...m, interact: false }));
-          break;
-      }
+      const key = KEY_MAP[e.code];
+      if (key) setKey(key, false);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -68,6 +41,4 @@ export const useKeyboardControls = () => {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
-
-  return movement;
 };
