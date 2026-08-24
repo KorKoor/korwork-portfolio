@@ -8,55 +8,70 @@ type Direction = 'down' | 'up' | 'left' | 'right';
 
 interface Interactable {
   id: string;
-  position: [number, number]; // [x, z]
+  position: [number, number];
   radius: number;
   onInteract: () => void;
 }
 
+interface RoomCollider {
+  id: string;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  padding?: number;
+}
+
 interface PlayerProps {
   onInteractDesk: () => void;
-  /** Posición inicial del jugador en el mundo (x, y del piso, z) */
   initialPosition?: [number, number, number];
-  /** Velocidad en unidades/segundo (independiente del framerate) */
   speed?: number;
-  /** Posición del escritorio interactuable en el plano XZ */
   deskPosition?: [number, number];
-  /** Radio de interacción con el escritorio */
   interactRadius?: number;
-  /** Muestra una sombra de contacto elíptica bajo los pies (default: true) */
   showGroundShadow?: boolean;
-  /** El sprite proyecta sombra dinámica sobre otros objetos (default: true) */
   castShadow?: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Assets (sin cambios respecto a la versión anterior)
-// ---------------------------------------------------------------------------
 const WALK_DIR = '/assets/Player-Actions/Walk';
 const idleFrontPaths = [`${WALK_DIR}/tile000.png`];
 const idleSidePaths = [`${WALK_DIR}/tile001.png`, `${WALK_DIR}/tile003.png`];
 const idleBackPaths = [`${WALK_DIR}/tile002.png`];
 const walkFrontPaths = [`${WALK_DIR}/tile004.png`, `${WALK_DIR}/tile005.png`];
 const walkBackPaths = [`${WALK_DIR}/tile007.png`];
-
 const walkSideFiles = [
   'tile000', 'tile001', 'tile002', 'tile003', 'tile004', 'tile005',
   'tile007', 'tile008', 'tile009', 'tile010', 'tile011', 'tile012',
 ];
 const walkSidePaths = walkSideFiles.map((f) => `${WALK_DIR}/Walk2/${f}.png`);
 
-// ---------------------------------------------------------------------------
-// Constantes de comportamiento
-// ---------------------------------------------------------------------------
 const DEFAULT_SPEED = 2.4;
-const DEFAULT_DESK_POSITION: [number, number] = [0, -3.5];
+const DEFAULT_DESK_POSITION: [number, number] = [0.35, -3.45];
 const DEFAULT_INTERACT_RADIUS = 1.2;
-const SPRITE_HEIGHT = 1.4; // altura local del quad del personaje
+const SPRITE_HEIGHT = 1.4;
 const SPRITE_BASE_ASPECT = 1.0 / SPRITE_HEIGHT;
-
+const PLAYER_RADIUS = 0.28;
 const FRAME_DURATION_IDLE = 0.5;
 const FRAME_DURATION_WALK_FRONT_BACK = 0.16;
 const FRAME_DURATION_WALK_SIDE = 0.07;
+
+/*
+ * Collision layer for the first pass.
+ *
+ * These coordinates intentionally match the large physical pieces in Room.tsx.
+ * Decorative sprites are not blockers yet; they can be added here progressively
+ * without changing the movement system.
+ */
+const ROOM_COLLIDERS: RoomCollider[] = [
+  // Back wall / left wall
+  { id: 'back-wall', minX: -4.65, maxX: 4.65, minZ: -4.72, maxZ: -4.45 },
+  { id: 'left-wall', minX: -4.72, maxX: -4.45, minZ: -4.45, maxZ: 4.65 },
+
+  // Desk and its deep tabletop/body
+  { id: 'desk', minX: -2.15, maxX: 2.90, minZ: -4.28, maxZ: -3.00, padding: 0.08 },
+
+  // Bed frame + mattress + headboard
+  { id: 'bed', minX: -4.32, maxX: -0.58, minZ: -3.28, maxZ: 0.12, padding: 0.08 },
+];
 
 interface AnimState {
   frames: THREE.Texture[];
@@ -64,10 +79,6 @@ interface AnimState {
   mirror: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Textura procedural para la sombra de contacto: un radial-gradient simple,
-// generado una sola vez en un <canvas> offscreen (no requiere ningún asset).
-// ---------------------------------------------------------------------------
 function useGroundShadowTexture(): THREE.Texture {
   return useMemo(() => {
     const size = 128;
@@ -87,6 +98,30 @@ function useGroundShadowTexture(): THREE.Texture {
   }, []);
 }
 
+function pointHitsCollider(x: number, z: number, collider: RoomCollider): boolean {
+  const padding = PLAYER_RADIUS + (collider.padding ?? 0);
+  return (
+    x >= collider.minX - padding &&
+    x <= collider.maxX + padding &&
+    z >= collider.minZ - padding &&
+    z <= collider.maxZ + padding
+  );
+}
+
+function canOccupy(x: number, z: number): boolean {
+  // Hard room bounds. The front/right sides stay open visually, but the player
+  // should never walk outside the playable floor.
+  const insideBounds =
+    x >= -4.42 + PLAYER_RADIUS &&
+    x <= 4.42 - PLAYER_RADIUS &&
+    z >= -4.42 + PLAYER_RADIUS &&
+    z <= 4.42 - PLAYER_RADIUS;
+
+  if (!insideBounds) return false;
+
+  return !ROOM_COLLIDERS.some((collider) => pointHitsCollider(x, z, collider));
+}
+
 export const Player: React.FC<PlayerProps> = ({
   onInteractDesk,
   initialPosition = [0, 0, 0],
@@ -96,9 +131,6 @@ export const Player: React.FC<PlayerProps> = ({
   showGroundShadow = true,
   castShadow = true,
 }) => {
-  // El group es quien se mueve por el mundo (x/z); el sprite es un hijo que
-  // solo rota para mirar a la cámara (billboard), sin arrastrar esa rotación
-  // a la posición ni a la sombra de piso.
   const groupRef = useRef<THREE.Group>(null);
   const spriteRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -171,7 +203,6 @@ export const Player: React.FC<PlayerProps> = ({
     const delta = Math.min(rawDelta, 1 / 30);
     const currentPos = groupRef.current.position;
 
-    // --- Movimiento (igual que antes: diagonal normalizada, delta-time) ---
     let moveX = 0;
     let moveZ = 0;
     if (movement.moveBackward) moveZ += 1;
@@ -183,11 +214,24 @@ export const Player: React.FC<PlayerProps> = ({
 
     if (isMoving) {
       const length = Math.hypot(moveX, moveZ);
-      currentPos.x += (moveX / length) * speed * delta;
-      currentPos.z += (moveZ / length) * speed * delta;
+      const stepX = (moveX / length) * speed * delta;
+      const stepZ = (moveZ / length) * speed * delta;
+
+      const nextX = currentPos.x + stepX;
+      const nextZ = currentPos.z + stepZ;
+
+      // Resolve each axis independently so the player slides along furniture
+      // instead of getting stuck on a diagonal corner.
+      if (canOccupy(nextX, nextZ)) {
+        currentPos.x = nextX;
+        currentPos.z = nextZ;
+      } else if (canOccupy(nextX, currentPos.z)) {
+        currentPos.x = nextX;
+      } else if (canOccupy(currentPos.x, nextZ)) {
+        currentPos.z = nextZ;
+      }
     }
 
-    // --- Dirección del sprite (misma lógica que antes) ---
     let newDirection = currentDirection.current;
     if (isMoving) {
       newDirection =
@@ -226,23 +270,15 @@ export const Player: React.FC<PlayerProps> = ({
       materialRef.current.needsUpdate = true;
     }
 
-    // --- Fix de proporción entre hojas de distinto aspecto ---
     const img = targetTexture.image as { width?: number; height?: number } | undefined;
     if (img?.width && img?.height) {
       const texAspect = img.width / img.height;
       spriteRef.current.scale.x = texAspect / SPRITE_BASE_ASPECT;
     }
 
-    // -----------------------------------------------------------------
-    // BILLBOARD: el sprite copia la rotación de la cámara para mirarla
-    // siempre de frente, sea cual sea el ángulo desde el que se lo vea
-    // (evita que se vea "de canto" al mover la cámara o al caminar de
-    // lado). Solo rota el hijo `sprite`, nunca el `group` — así la
-    // posición y la sombra de piso no se ven afectadas.
-    // -----------------------------------------------------------------
+    // Billboard solo para el personaje; la posición física sigue siendo X/Z.
     spriteRef.current.quaternion.copy(state.camera.quaternion);
 
-    // --- Interacción (flanco de subida, como antes) ---
     const interactJustPressed = movement.interact && !wasInteractPressed.current;
     wasInteractPressed.current = movement.interact;
 
@@ -259,8 +295,6 @@ export const Player: React.FC<PlayerProps> = ({
 
   return (
     <group ref={groupRef} position={initialPosition}>
-      {/* Sombra de contacto: plana en el piso, gira con el mundo, NO con la
-          cámara, para que siempre se vea como una mancha en el suelo. */}
       {showGroundShadow && (
         <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={-1}>
           <circleGeometry args={[0.42, 24]} />
@@ -275,7 +309,6 @@ export const Player: React.FC<PlayerProps> = ({
         </mesh>
       )}
 
-      {/* Sprite del personaje: billboard, recibe luz del entorno */}
       <mesh ref={spriteRef} position={[0, SPRITE_HEIGHT / 2, 0]} castShadow={castShadow} receiveShadow>
         <planeGeometry args={[1.0, SPRITE_HEIGHT]} />
         <meshStandardMaterial
@@ -283,10 +316,6 @@ export const Player: React.FC<PlayerProps> = ({
           transparent
           alphaTest={0.5}
           side={THREE.DoubleSide}
-          // Superficie mate: sin esto, el specular de un material lit se ve
-          // raro sobre pixel art (brillos donde no deberían), y además al
-          // ser billboard la normal siempre mira a cámara, así que cualquier
-          // specular quedaría pegado siempre al centro del sprite.
           roughness={1}
           metalness={0}
         />
