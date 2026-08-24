@@ -206,7 +206,7 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
 
       {/* =========================================================
           LOUNGE SOFA — left/front zone
-      ========================================================= */
+      ========================================================= */}
       <group position={[-2.45, 0, 2.15]}>
         <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
           <boxGeometry args={[3.65, 0.72, 1.25]} />
@@ -246,9 +246,9 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
       <RoomSprite position={[-2.45, 0.98, 2.15]} crop={{ x: 930, y: 835, width: 145, height: 105 }} height={0.75} rotation={FLOOR_ROTATION} depthOffset={0.08} />
       <RoomSprite position={[-3.15, 0.98, 2.08]} crop={{ x: 1060, y: 835, width: 145, height: 115 }} height={0.68} rotation={FLOOR_ROTATION} depthOffset={0.082} />
 
-      {/* =========================================================
+        {/* =========================================================
           COFFEE TABLE + CHAIR — central/front zone
-      ========================================================= */
+        ========================================================= */}
       <group position={[0.55, 0, 2.05]}>
         <mesh position={[0, 0.48, 0]} castShadow receiveShadow>
           <boxGeometry args={[2.05, 0.16, 1.05]} />
@@ -304,28 +304,25 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteractDesk }) => {
 
       {/* =========================================================
           ORGANIZED STORAGE / PROPS
-      ========================================================= */
-      <group position={[3.65, 0, 2.65]}>
-        <mesh position={[0, 1.0, 0]} castShadow receiveShadow>
-          <boxGeometry args={[1.15, 2.0, 0.62]} />
-          <meshStandardMaterial color="#241c20" roughness={0.92} />
-        </mesh>
-        <mesh position={[0, 1.78, 0]} castShadow>
-          <boxGeometry args={[1.28, 0.1, 0.72]} />
-          <meshStandardMaterial color="#65432f" roughness={0.8} />
-        </mesh>
-        <mesh position={[0, 1.08, 0]}>
-          <boxGeometry args={[1.28, 0.08, 0.72]} />
-          <meshStandardMaterial color="#65432f" roughness={0.8} />
-        </mesh>
-        <mesh position={[0, 0.38, 0]} castShadow>
-          <boxGeometry args={[1.28, 0.1, 0.72]} />
-          <meshStandardMaterial color="#65432f" roughness={0.8} />
-        </mesh>
-      </group>
-      <RoomSprite position={[3.65, 2.04, 2.30]} crop={{ x: 520, y: 600, width: 190, height: 300 }} height={1.0} rotation={FLOOR_ROTATION} depthOffset={0.08} />
-      <RoomSprite position={[3.65, 1.33, 2.30]} crop={{ x: 850, y: 770, width: 135, height: 80 }} height={0.52} rotation={FLOOR_ROTATION} depthOffset={0.082} />
-      <RoomSprite position={[3.65, 0.64, 2.30]} crop={{ x: 1260, y: 790, width: 180, height: 130 }} height={0.6} rotation={FLOOR_ROTATION} depthOffset={0.084} />
+      ========================================================= */}
+      <><group position={[3.65, 0, 2.65]}>
+          <mesh position={[0, 1.0, 0]} castShadow receiveShadow>
+            <boxGeometry args={[1.15, 2.0, 0.62]} />
+            <meshStandardMaterial color="#241c20" roughness={0.92} />
+          </mesh>
+          <mesh position={[0, 1.78, 0]} castShadow>
+            <boxGeometry args={[1.28, 0.1, 0.72]} />
+            <meshStandardMaterial color="#65432f" roughness={0.8} />
+          </mesh>
+          <mesh position={[0, 1.08, 0]}>
+            <boxGeometry args={[1.28, 0.08, 0.72]} />
+            <meshStandardMaterial color="#65432f" roughness={0.8} />
+          </mesh>
+          <mesh position={[0, 0.38, 0]} castShadow>
+            <boxGeometry args={[1.28, 0.1, 0.72]} />
+            <meshStandardMaterial color="#65432f" roughness={0.8} />
+          </mesh>
+        </group><RoomSprite position={[3.65, 2.04, 2.30]} crop={{ x: 520, y: 600, width: 190, height: 300 }} height={1.0} rotation={FLOOR_ROTATION} depthOffset={0.08} /><RoomSprite position={[3.65, 1.33, 2.30]} crop={{ x: 850, y: 770, width: 135, height: 80 }} height={0.52} rotation={FLOOR_ROTATION} depthOffset={0.082} /><RoomSprite position={[3.65, 0.64, 2.30]} crop={{ x: 1260, y: 790, width: 180, height: 130 }} height={0.6} rotation={FLOOR_ROTATION} depthOffset={0.084} /></>
 
       {/* Small props are intentionally grouped near their furniture */}
       <RoomSprite position={[-3.72, 0.22, 0.92]} crop={{ x: 430, y: 575, width: 105, height: 330 }} height={1.15} rotation={FLOOR_ROTATION} depthOffset={0.07} />
