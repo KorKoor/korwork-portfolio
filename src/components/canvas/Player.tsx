@@ -6,31 +6,9 @@ import { useKeyboardControls } from '../../hooks/useKeyboardControls';
 
 type Direction = 'down' | 'up' | 'left' | 'right';
 
-interface Interactable {
-  id: string;
-  position: [number, number];
-  radius: number;
-  onInteract: () => void;
-}
-
-interface RoomCollider {
-  id: string;
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
-  padding?: number;
-}
-
-interface HeightZone {
-  id: string;
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
-  y: number;
-}
-
+interface Interactable { id: string; position: [number, number]; radius: number; onInteract: () => void; }
+interface RoomCollider { id: string; minX: number; maxX: number; minZ: number; maxZ: number; padding?: number; }
+interface HeightZone { id: string; minX: number; maxX: number; minZ: number; maxZ: number; y: number; }
 interface PlayerProps {
   onInteractDesk: () => void;
   initialPosition?: [number, number, number];
@@ -47,36 +25,38 @@ const idleSidePaths = [`${WALK_DIR}/tile001.png`, `${WALK_DIR}/tile003.png`];
 const idleBackPaths = [`${WALK_DIR}/tile002.png`];
 const walkFrontPaths = [`${WALK_DIR}/tile004.png`, `${WALK_DIR}/tile005.png`];
 const walkBackPaths = [`${WALK_DIR}/tile007.png`];
-const walkSideFiles = ['tile000', 'tile001', 'tile002', 'tile003', 'tile004', 'tile005', 'tile007', 'tile008', 'tile009', 'tile010', 'tile011', 'tile012'];
+const walkSideFiles = ['tile000','tile001','tile002','tile003','tile004','tile005','tile007','tile008','tile009','tile010','tile011','tile012'];
 const walkSidePaths = walkSideFiles.map((f) => `${WALK_DIR}/Walk2/${f}.png`);
 
 const DEFAULT_SPEED = 2.55;
-const DEFAULT_DESK_POSITION: [number, number] = [2.55, -4.48];
+const DEFAULT_DESK_POSITION: [number, number] = [2.75, -4.82];
 const DEFAULT_INTERACT_RADIUS = 1.35;
 const SPRITE_HEIGHT = 1.4;
 const SPRITE_BASE_ASPECT = 1.0 / SPRITE_HEIGHT;
 const PLAYER_RADIUS = 0.30;
 const FRAME_DURATION_IDLE = 0.5;
 const FRAME_DURATION_WALK_FRONT_BACK = 0.16;
-// Slightly slower than the previous 0.07 so lateral movement reads clearly.
 const FRAME_DURATION_WALK_SIDE = 0.10;
 const SHADOW_Y_OFFSET = 0.015;
 const INTERACTION_PULSE_DURATION = 0.72;
 
 const FLOOR_TOP = 0.1825;
-const TIER_LOW = 0.16;
-const TIER_MED = 0.24;
-const TIER_HIGH = 0.34;
-const HEIGHT_LERP_SPEED = 6;
+const UPPER_FLOOR_TOP = FLOOR_TOP + 0.44;
+const HEIGHT_LERP_SPEED = 7;
 
 const HEIGHT_ZONES: HeightZone[] = [
-  { id: 'bed-zone', minX: -6.05, maxX: -1.05, minZ: -5.10, maxZ: -0.40, y: FLOOR_TOP + TIER_LOW },
-  { id: 'desk-zone', minX: -0.50, maxX: 5.60, minZ: -5.45, maxZ: -2.27, y: FLOOR_TOP + TIER_HIGH },
-  { id: 'lounge-zone', minX: -5.90, maxX: -0.50, minZ: 0.60, maxZ: 4.80, y: FLOOR_TOP + TIER_LOW },
-  { id: 'dining-zone', minX: -0.20, maxX: 5.50, minZ: 0.90, maxZ: 4.90, y: FLOOR_TOP + TIER_MED },
+  { id: 'upper-bedroom-office', minX: -6.65, maxX: 6.40, minZ: -6.00, maxZ: -1.55, y: UPPER_FLOOR_TOP },
+  { id: 'lounge', minX: -6.65, maxX: -1.15, minZ: -1.20, maxZ: 6.25, y: FLOOR_TOP },
+  { id: 'dining', minX: -0.95, maxX: 6.55, minZ: -1.20, maxZ: 6.25, y: FLOOR_TOP },
 ];
 
 function getTargetHeight(x: number, z: number): number {
+  const stairStart = -1.55;
+  const stairEnd = 1.20;
+  if (x > -0.80 && x < 1.70 && z >= stairStart && z <= stairEnd) {
+    const t = THREE.MathUtils.clamp((z - stairStart) / (stairEnd - stairStart), 0, 1);
+    return THREE.MathUtils.lerp(UPPER_FLOOR_TOP, FLOOR_TOP, t);
+  }
   for (const zone of HEIGHT_ZONES) {
     if (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) return zone.y;
   }
@@ -84,26 +64,26 @@ function getTargetHeight(x: number, z: number): number {
 }
 
 const ROOM_COLLIDERS: RoomCollider[] = [
-  { id: 'back-wall', minX: -6.15, maxX: 6.15, minZ: -6.22, maxZ: -5.78 },
-  { id: 'left-wall', minX: -6.22, maxX: -5.78, minZ: -5.78, maxZ: 5.78 },
-  { id: 'bed', minX: -5.68, maxX: -1.43, minZ: -5.03, maxZ: -1.48, padding: 0.08 },
-  { id: 'bedside-chest', minX: -0.92, maxX: 0.22, minZ: -5.52, maxZ: -4.54, padding: 0.05 },
-  { id: 'desk', minX: -0.20, maxX: 5.30, minZ: -5.15, maxZ: -3.75, padding: 0.08 },
-  // Horizontal sofa footprint.
-  { id: 'sofa', minX: -5.82, maxX: -2.08, minZ: 1.40, maxZ: 2.82, padding: 0.06 },
-  { id: 'coffee-table', minX: -3.75, maxX: -1.55, minZ: 2.90, maxZ: 4.30, padding: 0.06 },
-  { id: 'dining-table', minX: 1.375, maxX: 4.425, minZ: 1.69, maxZ: 3.51, padding: 0.06 },
-  { id: 'chair', minX: 2.38, maxX: 3.42, minZ: 3.45, maxZ: 4.55, padding: 0.06 },
-  { id: 'storage-shelf', minX: 4.22, maxX: 5.58, minZ: 1.33, maxZ: 2.27, padding: 0.06 },
-  { id: 'skateboard', minX: -5.85, maxX: -5.45, minZ: -2.75, maxZ: -1.95, padding: 0.04 },
-  { id: 'backpack', minX: -5.65, maxX: -5.05, minZ: -2.05, maxZ: -1.25, padding: 0.04 },
+  { id: 'back-wall', minX: -7.25, maxX: 7.25, minZ: -7.18, maxZ: -6.70 },
+  { id: 'left-wall', minX: -7.18, maxX: -6.70, minZ: -6.70, maxZ: 6.70 },
+  { id: 'front-low-wall', minX: -7.20, maxX: 7.20, minZ: 6.72, maxZ: 7.18 },
+  { id: 'bed', minX: -5.85, maxX: -1.25, minZ: -5.72, maxZ: -2.20, padding: 0.10 },
+  { id: 'bedside-table', minX: -1.30, maxX: -0.15, minZ: -6.35, maxZ: -5.40, padding: 0.06 },
+  { id: 'desk', minX: 0.05, maxX: 5.45, minZ: -5.55, maxZ: -4.05, padding: 0.10 },
+  { id: 'desk-chair', minX: 1.95, maxX: 3.55, minZ: -3.90, maxZ: -2.55, padding: 0.06 },
+  { id: 'sofa', minX: -6.82, maxX: -2.25, minZ: 3.88, maxZ: 5.45, padding: 0.10 },
+  { id: 'coffee-table', minX: -5.85, maxX: -3.05, minZ: 2.12, maxZ: 3.62, padding: 0.08 },
+  { id: 'dining-table', minX: 1.95, maxX: 5.35, minZ: 2.40, maxZ: 4.56, padding: 0.10 },
+  { id: 'dining-chair-north', minX: 3.20, maxX: 4.10, minZ: 4.45, maxZ: 5.60, padding: 0.06 },
+  { id: 'dining-chair-south', minX: 3.20, maxX: 4.10, minZ: 1.45, maxZ: 2.55, padding: 0.06 },
+  { id: 'dining-chair-west', minX: 0.90, maxX: 2.10, minZ: 3.05, maxZ: 3.95, padding: 0.06 },
+  { id: 'dining-chair-east', minX: 5.20, maxX: 6.30, minZ: 3.05, maxZ: 3.95, padding: 0.06 },
+  { id: 'front-shelf', minX: 2.70, maxX: 6.10, minZ: 6.30, maxZ: 7.00, padding: 0.06 },
+  { id: 'skateboard', minX: -6.62, maxX: -5.80, minZ: -0.20, maxZ: 0.65, padding: 0.04 },
+  { id: 'backpack', minX: -5.95, maxX: -5.20, minZ: 0.20, maxZ: 1.05, padding: 0.04 },
 ];
 
-interface AnimState {
-  frames: THREE.Texture[];
-  frameDuration: number;
-  mirror: boolean;
-}
+interface AnimState { frames: THREE.Texture[]; frameDuration: number; mirror: boolean; }
 
 function useGroundShadowTexture(): THREE.Texture {
   return useMemo(() => {
@@ -141,7 +121,7 @@ function circleHitsAABB(x: number, z: number, collider: RoomCollider): boolean {
 }
 
 function canOccupy(x: number, z: number): boolean {
-  const insideBounds = x >= -5.48 + PLAYER_RADIUS && x <= 6.48 - PLAYER_RADIUS && z >= -5.48 + PLAYER_RADIUS && z <= 5.48 - PLAYER_RADIUS;
+  const insideBounds = x >= -6.52 + PLAYER_RADIUS && x <= 6.52 - PLAYER_RADIUS && z >= -6.52 + PLAYER_RADIUS && z <= 6.52 - PLAYER_RADIUS;
   if (!insideBounds) return false;
   return !ROOM_COLLIDERS.some((collider) => circleHitsAABB(x, z, collider));
 }
@@ -151,7 +131,6 @@ function moveWithCollisions(position: THREE.Vector3, dx: number, dz: number) {
   const steps = Math.max(1, Math.ceil(distance / 0.08));
   const stepX = dx / steps;
   const stepZ = dz / steps;
-
   for (let i = 0; i < steps; i += 1) {
     const nextX = position.x + stepX;
     const nextZ = position.z + stepZ;
@@ -231,17 +210,14 @@ export const Player: React.FC<PlayerProps> = ({
 
   useFrame((state, rawDelta) => {
     if (!groupRef.current || !spriteRef.current || !materialRef.current) return;
-
     const delta = Math.min(rawDelta, 1 / 30);
     const currentPos = groupRef.current.position;
-
     let moveX = 0;
     let moveZ = 0;
     if (movement.moveBackward) moveZ += 1;
     if (movement.moveForward) moveZ -= 1;
     if (movement.moveLeft) moveX -= 1;
     if (movement.moveRight) moveX += 1;
-
     const isMoving = moveX !== 0 || moveZ !== 0;
     if (isMoving) {
       const length = Math.hypot(moveX, moveZ);
@@ -252,10 +228,7 @@ export const Player: React.FC<PlayerProps> = ({
     currentPos.y = THREE.MathUtils.damp(currentPos.y, targetY, HEIGHT_LERP_SPEED, delta);
 
     let newDirection = currentDirection.current;
-    if (isMoving) {
-      newDirection = Math.abs(moveX) >= Math.abs(moveZ) ? (moveX > 0 ? 'right' : 'left') : (moveZ > 0 ? 'down' : 'up');
-    }
-
+    if (isMoving) newDirection = Math.abs(moveX) >= Math.abs(moveZ) ? (moveX > 0 ? 'right' : 'left') : (moveZ > 0 ? 'down' : 'up');
     const directionChanged = newDirection !== currentDirection.current;
     const movementStateChanged = isMoving !== wasMoving.current;
     if (directionChanged || movementStateChanged) {
@@ -272,9 +245,7 @@ export const Player: React.FC<PlayerProps> = ({
         currentFrame.current = (currentFrame.current + 1) % frames.length;
         frameTimer.current -= frameDuration;
       }
-    } else {
-      currentFrame.current = 0;
-    }
+    } else currentFrame.current = 0;
 
     const targetTexture = frames[currentFrame.current];
     targetTexture.repeat.x = mirror ? -1 : 1;
@@ -284,20 +255,14 @@ export const Player: React.FC<PlayerProps> = ({
     }
 
     const img = targetTexture.image as { width?: number; height?: number } | undefined;
-    if (img?.width && img?.height) {
-      const texAspect = img.width / img.height;
-      spriteRef.current.scale.x = texAspect / SPRITE_BASE_ASPECT;
-    }
-
+    if (img?.width && img?.height) spriteRef.current.scale.x = (img.width / img.height) / SPRITE_BASE_ASPECT;
     spriteRef.current.quaternion.copy(state.camera.quaternion);
 
     const interactJustPressed = movement.interact && !wasInteractPressed.current;
     wasInteractPressed.current = movement.interact;
-
     if (interactJustPressed) {
       for (const target of interactables) {
-        const dist = Math.hypot(currentPos.x - target.position[0], currentPos.z - target.position[1]);
-        if (dist < target.radius) {
+        if (Math.hypot(currentPos.x - target.position[0], currentPos.z - target.position[1]) < target.radius) {
           target.onInteract();
           pulseTimer.current = INTERACTION_PULSE_DURATION;
           break;
@@ -335,13 +300,10 @@ export const Player: React.FC<PlayerProps> = ({
           <meshBasicMaterial map={groundShadowTexture} transparent opacity={0.85} depthWrite={false} depthTest polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
         </mesh>
       )}
-
       <mesh ref={spriteRef} position={[0, SPRITE_HEIGHT / 2, 0]} castShadow={castShadow} receiveShadow>
         <planeGeometry args={[1.0, SPRITE_HEIGHT]} />
         <meshStandardMaterial ref={materialRef} transparent alphaTest={0.5} side={THREE.DoubleSide} roughness={1} metalness={0} />
       </mesh>
-
-      {/* Small desk interaction pulse. It stays locked to the desk world position. */}
       <group ref={pulseRef} visible={false}>
         <mesh ref={pulseRingRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={20}>
           <ringGeometry args={[0.22, 0.30, 24]} />
