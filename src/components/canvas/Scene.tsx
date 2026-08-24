@@ -3,7 +3,6 @@ import { Canvas } from '@react-three/fiber';
 import {
   OrbitControls,
   ContactShadows,
-  Stars,
   Preload,
 } from '@react-three/drei';
 import {
@@ -48,49 +47,43 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => {
           depth: true,
         }}
       >
-        {/* =========================================================
-            BACKGROUND
-        ========================================================= */}
+        {/* =====================================================
+            WORLD BACKGROUND
+        ===================================================== */}
 
-        <color attach="background" args={['#050811']} />
-
-        <Stars
-          radius={60}
-          depth={50}
-          count={900}
-          factor={3}
-          saturation={0.8}
-          fade
-          speed={0.7}
+        <color
+          attach="background"
+          args={['#050811']}
         />
 
-        {/* =========================================================
-            AMBIENT LIGHTING
-        ========================================================= */}
+        {/* =====================================================
+            BASE LIGHT
+            Suave para no destruir los colores del pixel-art.
+        ===================================================== */}
 
         <ambientLight
-          intensity={0.45}
-          color="#b9d8ff"
+          intensity={0.55}
+          color="#c7dcff"
         />
 
         <hemisphereLight
-          intensity={0.35}
-          color="#8ec5ff"
-          groundColor="#080b16"
+          intensity={0.28}
+          color="#9ac7ff"
+          groundColor="#090b14"
         />
 
-        {/* =========================================================
-            MAIN LIGHT
-        ========================================================= */}
+        {/* =====================================================
+            MAIN MOON / WINDOW LIGHT
+        ===================================================== */}
 
         <directionalLight
-          position={[10, 18, 12]}
-          intensity={1.8}
-          color="#fff8ed"
+          position={[8, 16, 10]}
+          intensity={1.35}
+          color="#fff4df"
           castShadow
           shadow-mapSize={[2048, 2048]}
-          shadow-bias={-0.0002}
-          shadow-normalBias={0.02}
+          shadow-bias={-0.00015}
+          shadow-normalBias={0.015}
           shadow-camera-left={-12}
           shadow-camera-right={12}
           shadow-camera-top={12}
@@ -99,104 +92,147 @@ export const Scene: React.FC<SceneProps> = ({ onInteractDesk }) => {
           shadow-camera-far={50}
         />
 
-        {/* =========================================================
-            NEON / ROOM LIGHTING
-        ========================================================= */}
+        {/* =====================================================
+            CYAN DESK LIGHT
+        ===================================================== */}
 
-        {/* Azul — escritorio / fondo */}
         <pointLight
-          position={[0, 2.5, -4]}
-          intensity={2.8}
+          position={[0, 2.8, -3.8]}
+          intensity={1.9}
           color="#38bdf8"
-          distance={7}
+          distance={6}
           decay={2}
         />
 
-        {/* Morado — lateral */}
+        {/* =====================================================
+            PURPLE SIDE LIGHT
+        ===================================================== */}
+
         <pointLight
-          position={[-3, 2.5, 0]}
-          intensity={1.8}
+          position={[-3.5, 2.5, -0.5]}
+          intensity={1.15}
           color="#a855f7"
           distance={6}
           decay={2}
         />
 
-        {/* Luz secundaria fría */}
+        {/* =====================================================
+            SOFT BLUE FILL
+        ===================================================== */}
+
         <pointLight
           position={[4, 3, 2]}
-          intensity={0.8}
+          intensity={0.55}
           color="#60a5fa"
           distance={7}
           decay={2}
-      />
+        />
 
-        {/* =========================================================
+        {/* =====================================================
+            WARM ROOM LIGHT
+        ===================================================== */}
+
+        <pointLight
+          position={[-2.5, 2, -2.5]}
+          intensity={0.45}
+          color="#ffb86b"
+          distance={5}
+          decay={2}
+        />
+
+        {/* =====================================================
             CONTACT SHADOWS
-        ========================================================= */}
+        ===================================================== */}
 
         <ContactShadows
-          position={[0, 0.01, 0]}
-          opacity={0.65}
+          position={[0, 0.015, 0]}
+          opacity={0.5}
           scale={14}
-          blur={2.8}
+          blur={2.4}
           far={5}
           resolution={1024}
           frames={1}
         />
 
-        {/* =========================================================
+        {/* =====================================================
             ROOM
-        ========================================================= */}
+        ===================================================== */}
 
         <Suspense fallback={null}>
-          <Room onInteractDesk={onInteractDesk} />
+          <Room
+            onInteractDesk={onInteractDesk}
+          />
         </Suspense>
 
-        {/* =========================================================
-            ISOMETRIC CAMERA CONTROLS
-        ========================================================= */}
+        {/* =====================================================
+            CONTROLLED ISOMETRIC CAMERA
+        ===================================================== */}
 
         <OrbitControls
           enableDamping
           dampingFactor={0.08}
+
+          /*
+           * IMPORTANT:
+           *
+           * The room uses pixel-art sprites drawn from one
+           * specific perspective.
+           *
+           * Therefore the camera must NOT rotate around them.
+           */
+          enableRotate={false}
+
           enablePan={false}
           enableZoom
+
           screenSpacePanning={false}
-          rotateSpeed={0.5}
-          zoomSpeed={0.8}
-          minZoom={35}
-          maxZoom={85}
-          minPolarAngle={Math.PI / 6}
-          maxPolarAngle={Math.PI / 2.15}
+
+          zoomSpeed={0.75}
+
+          /*
+           * Keeps the room framed instead of allowing the
+           * camera to become absurdly close/far.
+           */
+          minZoom={42}
+          maxZoom={78}
+
+          /*
+           * Keep the camera centered slightly above the
+           * actual origin of the room.
+           */
+          target={[0, 0.7, 0]}
         />
 
-        {/* =========================================================
+        {/* =====================================================
             POST PROCESSING
-        ========================================================= */}
+        ===================================================== */}
 
         <EffectComposer
           enableNormalPass={false}
           multisampling={4}
         >
+          {/* Very subtle bloom.
+              We don't want to blur the pixel-art. */}
           <Bloom
             mipmapBlur
-            intensity={0.7}
-            luminanceThreshold={0.75}
-            luminanceSmoothing={0.4}
+            intensity={0.42}
+            luminanceThreshold={0.82}
+            luminanceSmoothing={0.25}
           />
 
+          {/* Cinematic edges without crushing the room. */}
           <Vignette
             eskil={false}
-            offset={0.15}
-            darkness={0.65}
+            offset={0.18}
+            darkness={0.48}
           />
 
           <ToneMapping />
         </EffectComposer>
 
-        {/* =========================================================
+        {/* =====================================================
             PRELOAD
-        ========================================================= */}
+        ===================================================== */}
 
         <Preload all />
       </Canvas>
