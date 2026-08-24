@@ -1,185 +1,21 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
-import { useTexture } from '@react-three/drei';
-import type { ThreeEvent } from '@react-three/fiber';
+import React, { useCallback } from 'react';
 import { Player } from './Player';
-import * as THREE from 'three';
-
-const ROOM_PROPS = '/assets/Rooms/room-props.png';
-
-/**
- * El atlas está definido en coordenadas de píxel,
- * empezando desde la esquina superior izquierda.
- */
-interface Crop {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface RoomSpriteProps {
-  position: [number, number, number];
-  crop: Crop;
-
-  /**
-   * Altura visual del sprite.
-   * El ancho se calcula automáticamente para evitar
-   * deformar el pixel-art.
-   */
-  height: number;
-
-  /**
-   * Rotación explícita del sprite.
-   *
-   * Para los elementos de pared usamos el ángulo
-   * isométrico de la cámara.
-   *
-   * Para objetos especiales podemos modificarlo.
-   */
-  rotation?: [number, number, number];
-
-  /**
-   * Micro-offset de profundidad.
-   */
-  depth?: number;
-
-  onClick?: () => void;
-}
-
-/**
- * Ángulo horizontal de nuestra cámara isométrica.
- *
- * Cámara:
- * [12, 12, 12]
- *
- * Por lo tanto los sprites deben mirar aproximadamente
- * hacia la diagonal +X/+Z.
- */
-const ISO_YAW = Math.PI / 4;
-
-/**
- * Sprite pixel-art del atlas.
- *
- * Importante:
- * - No usamos meshStandardMaterial.
- * - No usamos escala arbitraria.
- * - No deformamos el aspect ratio.
- * - El sprite conserva su iluminación original.
- */
-const RoomSprite = React.memo<RoomSpriteProps>(
-  ({
-    position,
-    crop,
-    height,
-    rotation = [0, ISO_YAW, 0],
-    depth = 0,
-    onClick,
-  }) => {
-    const atlas = useTexture(ROOM_PROPS);
-
-    const texture = useMemo(() => {
-      const tex = atlas.clone();
-
-      const image = atlas.image as {
-        width: number;
-        height: number;
-      };
-
-      const atlasWidth = image.width;
-      const atlasHeight = image.height;
-
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
-
-      /**
-       * MUY IMPORTANTE para pixel-art.
-       */
-      tex.generateMipmaps = false;
-
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
-
-      tex.colorSpace = THREE.SRGBColorSpace;
-
-      tex.repeat.set(
-        crop.width / atlasWidth,
-        crop.height / atlasHeight,
-      );
-
-      /**
-       * El atlas está definido de arriba → abajo,
-       * mientras Three.js trabaja de abajo → arriba.
-       */
-      tex.offset.set(
-        crop.x / atlasWidth,
-        1 - (crop.y + crop.height) / atlasHeight,
-      );
-
-      tex.needsUpdate = true;
-
-      return tex;
-    }, [
-      atlas,
-      crop.x,
-      crop.y,
-      crop.width,
-      crop.height,
-    ]);
-
-    useEffect(() => {
-      return () => {
-        texture.dispose();
-      };
-    }, [texture]);
-
-    /**
-     * Nunca deformamos el sprite.
-     *
-     * width = height × aspectRatio
-     */
-    const aspect = crop.width / crop.height;
-    const width = height * aspect;
-
-    const handleClick = useCallback(
-      (event: ThreeEvent<MouseEvent>) => {
-        event.stopPropagation();
-        onClick?.();
-      },
-      [onClick],
-    );
-
-    return (
-      <mesh
-        position={[
-          position[0],
-          position[1],
-          position[2] + depth,
-        ]}
-        rotation={rotation}
-        onClick={handleClick}
-      >
-        <planeGeometry args={[width, height]} />
-
-        <meshBasicMaterial
-          map={texture}
-          transparent
-          alphaTest={0.08}
-          depthWrite
-          depthTest
-          side={THREE.DoubleSide}
-          toneMapped={false}
-        />
-      </mesh>
-    );
-  },
-);
-
-RoomSprite.displayName = 'RoomSprite';
+import { RoomSprite } from './RoomProps';
 
 interface RoomProps {
   onInteractDesk: () => void;
 }
 
+/**
+ * Habitación 2.5D.
+ *
+ * Regla importante:
+ * - Las paredes y el mobiliario estructural son geometría 3D.
+ * - Los props del artwork permanecen como sprites planos.
+ * - Los elementos de pared permanecen verticales.
+ * - Los elementos de suelo se colocan horizontalmente.
+ * - Nunca rotamos todos los sprites juntos para "forzar" una perspectiva.
+ */
 export const Room: React.FC<RoomProps> = React.memo(
   ({ onInteractDesk }) => {
     const handleDeskInteraction = useCallback(() => {
@@ -188,310 +24,163 @@ export const Room: React.FC<RoomProps> = React.memo(
 
     return (
       <group>
-        {/* =====================================================
-            FLOOR BASE
-        ===================================================== */}
-
-        <mesh
-          position={[0, -0.12, 0]}
-          receiveShadow
-        >
-          <boxGeometry args={[10.5, 0.24, 10.5]} />
-
-          <meshStandardMaterial
-            color="#211c25"
-            roughness={1}
-            metalness={0}
-          />
+        {/* ROOM SHELL */}
+        <mesh position={[0, -0.14, 0]} receiveShadow>
+          <boxGeometry args={[10.6, 0.28, 10.6]} />
+          <meshStandardMaterial color="#17151b" roughness={1} metalness={0} />
         </mesh>
 
-        {/* =====================================================
-            FLOOR
-        ===================================================== */}
-
-        <mesh
-          position={[0, 0.015, 0.5]}
-          receiveShadow
-        >
-          <boxGeometry args={[8.8, 0.04, 8.8]} />
-
-          <meshStandardMaterial
-            color="#29232d"
-            roughness={1}
-            metalness={0}
-          />
+        <mesh position={[0, 0, 0]} receiveShadow>
+          <boxGeometry args={[10, 0.08, 10]} />
+          <meshStandardMaterial color="#29242f" roughness={1} metalness={0} />
         </mesh>
 
-        {/* =====================================================
-            RUG
-        ===================================================== */}
-
-        <mesh
-          position={[0.15, 0.04, 0.75]}
-          receiveShadow
-        >
-          <boxGeometry args={[6.4, 0.035, 4.8]} />
-
-          <meshStandardMaterial
-            color="#342d3b"
-            roughness={1}
-            metalness={0}
-          />
+        <mesh position={[0.15, 0.065, 0.55]} receiveShadow>
+          <boxGeometry args={[6.8, 0.035, 5.4]} />
+          <meshStandardMaterial color="#37313f" roughness={1} metalness={0} />
         </mesh>
 
-        {/* =====================================================
-            BACK WALL
-        ===================================================== */}
-
-        <mesh
-          position={[0, 2.5, -5]}
-          receiveShadow
-        >
+        {/* WALLS */}
+        <mesh position={[0, 2.5, -5]} receiveShadow>
           <boxGeometry args={[10, 5, 0.16]} />
-
-          <meshStandardMaterial
-            color="#111827"
-            roughness={1}
-            metalness={0}
-          />
+          <meshStandardMaterial color="#111827" roughness={1} metalness={0} />
         </mesh>
 
-        {/* =====================================================
-            LEFT WALL
-        ===================================================== */}
-
-        <mesh
-          position={[-5, 2.5, 0]}
-          receiveShadow
-        >
+        <mesh position={[-5, 2.5, 0]} receiveShadow>
           <boxGeometry args={[0.16, 5, 10]} />
-
-          <meshStandardMaterial
-            color="#182238"
-            roughness={1}
-            metalness={0}
-          />
+          <meshStandardMaterial color="#182238" roughness={1} metalness={0} />
         </mesh>
 
-        {/* =====================================================
-            WALL CORNER
-        ===================================================== */}
-
-        <mesh
-          position={[-4.9, 2.5, -4.9]}
-          receiveShadow
-        >
+        <mesh position={[-4.9, 2.5, -4.9]} receiveShadow>
           <boxGeometry args={[0.22, 5.1, 0.22]} />
-
-          <meshStandardMaterial
-            color="#080b13"
-            roughness={1}
-            metalness={0}
-          />
+          <meshStandardMaterial color="#080b13" roughness={1} metalness={0} />
         </mesh>
 
-        {/* =====================================================
-            WALL DECORATION
-        ===================================================== */}
-
-        {/* ---------------- CORCHO ---------------- */}
+        {/* WALL ART — vertical, never rotated 45° */}
+        <RoomSprite
+          position={[-2.55, 3.42, -4.88]}
+          crop={{ x: 351, y: 22, width: 384, height: 302 }}
+          height={1.95}
+          depthOffset={0.012}
+        />
 
         <RoomSprite
-          position={[-2.35, 3.25, -4.82]}
-          crop={{
-            x: 350,
-            y: 22,
-            width: 385,
-            height: 302,
-          }}
+          position={[0.25, 3.42, -4.87]}
+          crop={{ x: 880, y: 28, width: 244, height: 278 }}
           height={2.05}
-          depth={0.01}
+          depthOffset={0.014}
         />
 
-        {/* ---------------- WINDOW ---------------- */}
-
         <RoomSprite
-          position={[0.95, 3.2, -4.81]}
-          crop={{
-            x: 875,
-            y: 28,
-            width: 245,
-            height: 297,
-          }}
-          height={2.25}
-          depth={0.015}
-        />
-
-        {/* ---------------- HANGING PLANT ---------------- */}
-
-        <RoomSprite
-          position={[3.35, 3.15, -4.79]}
-          crop={{
-            x: 744,
-            y: 11,
-            width: 126,
-            height: 319,
-          }}
-          height={2.4}
-          depth={0.02}
-        />
-
-        {/* ---------------- GUITAR ---------------- */}
-
-        <RoomSprite
-          position={[4.35, 2.45, -4.78]}
-          crop={{
-            x: 1435,
-            y: 16,
-            width: 91,
-            height: 312,
-          }}
-          height={2.65}
-          depth={0.025}
-        />
-
-        {/* =====================================================
-            DESK
-        ===================================================== */}
-
-        {/*
-         * Ya NO construimos un escritorio completo con cajas.
-         *
-         * El artwork del atlas contiene el lenguaje visual
-         * que queremos mantener.
-         */}
-
-        <RoomSprite
-          position={[-0.35, 1.45, -4.55]}
-          crop={{
-            x: 215,
-            y: 345,
-            width: 720,
-            height: 250,
-          }}
+          position={[3.05, 3.42, -4.86]}
+          crop={{ x: 1150, y: 15, width: 143, height: 196 }}
           height={1.55}
-          depth={0.05}
-          onClick={handleDeskInteraction}
+          depthOffset={0.016}
         />
 
-        {/* =====================================================
-            DESK LAMP
-        ===================================================== */}
-
         <RoomSprite
-          position={[2.0, 1.65, -4.5]}
-          crop={{
-            x: 800,
-            y: 318,
-            width: 180,
-            height: 187,
-          }}
-          height={1.2}
-          depth={0.06}
+          position={[2.05, 2.85, -4.84]}
+          crop={{ x: 744, y: 11, width: 114, height: 296 }}
+          height={1.9}
+          depthOffset={0.018}
         />
 
-        {/* =====================================================
-            SHELF
-        ===================================================== */}
-
         <RoomSprite
-          position={[3.05, 1.48, -4.65]}
-          crop={{
-            x: 1100,
-            y: 195,
-            width: 345,
-            height: 165,
-          }}
-          height={1.28}
-          depth={0.07}
+          position={[4.35, 2.38, -4.83]}
+          crop={{ x: 1424, y: 16, width: 102, height: 311 }}
+          height={2.35}
+          depthOffset={0.02}
         />
 
-        {/* =====================================================
-            NOTES
-        ===================================================== */}
+        {/* DESK */}
+        <group position={[0.25, 0, -3.85]} onClick={handleDeskInteraction}>
+          <mesh position={[0, 1.02, 0]} castShadow receiveShadow>
+            <boxGeometry args={[4.8, 0.16, 1.05]} />
+            <meshStandardMaterial color="#6f4c31" roughness={0.9} metalness={0} />
+          </mesh>
+
+          <mesh position={[0, 0.55, 0.34]} castShadow receiveShadow>
+            <boxGeometry args={[4.35, 0.82, 0.12]} />
+            <meshStandardMaterial color="#4b3021" roughness={0.95} metalness={0} />
+          </mesh>
+
+          <mesh position={[-2.05, 0.48, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.18, 0.9, 0.8]} />
+            <meshStandardMaterial color="#3a251a" roughness={1} metalness={0} />
+          </mesh>
+
+          <mesh position={[2.05, 0.48, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.18, 0.9, 0.8]} />
+            <meshStandardMaterial color="#3a251a" roughness={1} metalness={0} />
+          </mesh>
+        </group>
+
+        {/* DESK EQUIPMENT — vertical sprites on the desk */}
+        <RoomSprite
+          position={[-1.35, 1.35, -3.78]}
+          crop={{ x: 220, y: 359, width: 263, height: 212 }}
+          height={1.18}
+          depthOffset={0.03}
+        />
 
         <RoomSprite
-          position={[3.1, 3.15, -4.68]}
-          crop={{
-            x: 1080,
-            y: 365,
-            width: 177,
-            height: 197,
-          }}
+          position={[0.05, 1.65, -4.02]}
+          crop={{ x: 394, y: 345, width: 264, height: 195 }}
           height={1.35}
-          depth={0.08}
+          depthOffset={0.032}
         />
 
-        {/* =====================================================
-            AGUASCALIENTES MAP
-        ===================================================== */}
+        <RoomSprite
+          position={[1.35, 1.62, -3.98]}
+          crop={{ x: 662, y: 335, width: 135, height: 220 }}
+          height={1.38}
+          depthOffset={0.034}
+        />
 
         <RoomSprite
-          position={[4.0, 2.35, -4.67]}
-          crop={{
-            x: 1265,
-            y: 365,
-            width: 256,
-            height: 235,
-          }}
+          position={[2.15, 1.65, -3.72]}
+          crop={{ x: 799, y: 318, width: 166, height: 244 }}
           height={1.45}
-          depth={0.08}
+          depthOffset={0.036}
         />
 
-        {/* =====================================================
-            BED
-        ===================================================== */}
-
-        {/*
-         * La cama es el elemento especial.
-         *
-         * NO queremos que parezca un cuadro pegado a una pared.
-         *
-         * La mantenemos orientada hacia nuestra composición
-         * isométrica y la desplazamos hacia el fondo/lateral.
-         *
-         * La posición Y representa el nivel visual del objeto,
-         * mientras la orientación mantiene el pixel-art
-         * consistente con la cámara.
-         */}
+        {/* RIGHT WALL DECOR */}
+        <RoomSprite
+          position={[3.05, 1.45, -4.80]}
+          crop={{ x: 1103, y: 202, width: 322, height: 164 }}
+          height={1.05}
+          depthOffset={0.04}
+        />
 
         <RoomSprite
-          position={[-3.0, 1.48, -1.9]}
-          crop={{
-            x: 1,
-            y: 570,
-            width: 414,
-            height: 380,
-          }}
-          height={3.05}
-          rotation={[0, ISO_YAW, 0]}
-          depth={0.12}
+          position={[3.45, 2.55, -4.82]}
+          crop={{ x: 1080, y: 372, width: 177, height: 190 }}
+          height={1.18}
+          depthOffset={0.042}
         />
-
-        {/* =====================================================
-            FLOOR PETS / FLOOR DECORATION
-        ===================================================== */}
 
         <RoomSprite
-          position={[1.2, 0.72, 1.15]}
-          crop={{
-            x: 680,
-            y: 770,
-            width: 430,
-            height: 140,
-          }}
-          height={0.95}
-          rotation={[0, ISO_YAW, 0]}
-          depth={0.15}
+          position={[4.15, 2.45, -4.81]}
+          crop={{ x: 1270, y: 367, width: 251, height: 227 }}
+          height={1.2}
+          depthOffset={0.044}
         />
 
-        {/* =====================================================
-            PLAYER
-        ===================================================== */}
+        {/* BED — horizontal floor sprite */}
+        <mesh position={[-2.65, 0.12, -1.55]} receiveShadow castShadow>
+          <boxGeometry args={[3.55, 0.16, 3.15]} />
+          <meshStandardMaterial color="#171522" roughness={1} metalness={0} />
+        </mesh>
 
-        <Player
-          onInteractDesk={onInteractDesk}
+        <RoomSprite
+          position={[-2.65, 0.215, -1.55]}
+          crop={{ x: 4, y: 569, width: 418, height: 371 }}
+          height={3.0}
+          rotation={[-Math.PI / 2, 0, 0]}
+          depthOffset={0.05}
         />
+
+        <Player onInteractDesk={onInteractDesk} />
       </group>
     );
   },
