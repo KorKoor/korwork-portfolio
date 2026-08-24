@@ -22,6 +22,15 @@ interface RoomCollider {
   padding?: number;
 }
 
+interface HeightZone {
+  id: string;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  y: number;
+}
+
 interface PlayerProps {
   onInteractDesk: () => void;
   initialPosition?: [number, number, number];
@@ -53,50 +62,66 @@ const PLAYER_RADIUS = 0.30;
 const FRAME_DURATION_IDLE = 0.5;
 const FRAME_DURATION_WALK_FRONT_BACK = 0.16;
 const FRAME_DURATION_WALK_SIDE = 0.07;
-
-/**
- * The floor top surface sits at y≈0.18-0.19 in Room.tsx (planks + base
- * layers), not at y=0. The player group's own y-position is controlled by
- * whoever mounts <Player>, but the ground shadow below is defined here in
- * local space, so we keep it just barely above the sprite's own feet
- * (y=0) rather than assuming a world floor height.
- */
 const SHADOW_Y_OFFSET = 0.015;
 
+/**
+ * Must match the constants in Room.tsx (FLOOR_TOP / TIER_LOW / TIER_MED /
+ * TIER_HIGH). Kept duplicated here since Room and Player are separate
+ * modules — if you rework the room's heights, update both.
+ */
+const FLOOR_TOP = 0.1825;
+const TIER_LOW = 0.16;
+const TIER_MED = 0.24;
+const TIER_HIGH = 0.34;
+const HEIGHT_LERP_SPEED = 6; // higher = snappier climb/descend
+
+/**
+ * Zones where the player's Y should rise or fall to match the platform
+ * they're standing on. Bounds are intentionally the FULL platform + stair
+ * footprint (not just the furniture), so the climb starts as soon as the
+ * player sets foot on the stairs, not only once fully on top.
+ * Order matters: first match wins, so keep these non-overlapping.
+ */
+const HEIGHT_ZONES: HeightZone[] = [
+  { id: 'bed-zone', minX: -6.05, maxX: -1.05, minZ: -5.10, maxZ: -0.40, y: FLOOR_TOP + TIER_LOW },
+  { id: 'desk-zone', minX: -0.50, maxX: 5.60, minZ: -5.45, maxZ: -2.27, y: FLOOR_TOP + TIER_HIGH },
+  { id: 'lounge-zone', minX: -5.90, maxX: -0.50, minZ: 0.60, maxZ: 4.80, y: FLOOR_TOP + TIER_LOW },
+  { id: 'dining-zone', minX: -0.20, maxX: 5.50, minZ: 0.90, maxZ: 4.90, y: FLOOR_TOP + TIER_MED },
+];
+
+function getTargetHeight(x: number, z: number): number {
+  for (const zone of HEIGHT_ZONES) {
+    if (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) {
+      return zone.y;
+    }
+  }
+  return FLOOR_TOP;
+}
+
 /*
- * Physical map for the enlarged 14.8 x 12.6 room in Room.tsx.
- * Decorative wall art remains walkable; actual furniture and the raised
- * zone platforms it sits on receive solid AABB colliders, sized to cover
- * the full platform footprint (not just the furniture mesh) so the player
- * never walks onto a raised edge it can't visually stand on. Padding is
- * added to the player's circular footprint, not to the furniture itself.
+ * Physical map for the 14.8 x 12.6 room in Room.tsx. Unlike before, these
+ * colliders now cover ONLY the actual furniture footprint, not the whole
+ * platform — the platform itself is walkable (the player climbs onto it
+ * via the height-zone system above), only the solid objects on top of it
+ * block movement.
  */
 const ROOM_COLLIDERS: RoomCollider[] = [
-  // Architecture
   { id: 'back-wall', minX: -6.15, maxX: 6.15, minZ: -6.22, maxZ: -5.78 },
   { id: 'left-wall', minX: -6.22, maxX: -5.78, minZ: -5.78, maxZ: 5.78 },
 
-  // Bed platform (raised warm zone), flush with the back wall
-  { id: 'bed-platform', minX: -5.98, maxX: -1.13, minZ: -5.13, maxZ: -0.85, padding: 0.05 },
-
-  // Bedside chest (sits on the bed platform, kept as its own tighter box)
+  { id: 'bed', minX: -5.68, maxX: -1.43, minZ: -5.03, maxZ: -1.48, padding: 0.08 },
   { id: 'bedside-chest', minX: -0.92, maxX: 0.22, minZ: -5.52, maxZ: -4.54, padding: 0.05 },
+  { id: 'desk', minX: -0.20, maxX: 5.30, minZ: -5.15, maxZ: -3.75, padding: 0.08 },
 
-  // Desk platform (tallest / tech zone)
-  { id: 'desk-platform', minX: -0.48, maxX: 5.58, minZ: -5.46, maxZ: -3.08, padding: 0.05 },
+  { id: 'sofa', minX: -6.06, maxX: -2.34, minZ: 1.36, maxZ: 2.85, padding: 0.06 },
+  { id: 'coffee-table', minX: -3.80, maxX: -1.60, minZ: 2.86, maxZ: 4.34, padding: 0.06 },
 
-  // Lounge platform (sunken zone: sofa + coffee table)
-  { id: 'lounge-platform', minX: -6.0, maxX: -0.93, minZ: 1.45, maxZ: 4.05, padding: 0.05 },
+  { id: 'dining-table', minX: 1.375, maxX: 4.425, minZ: 1.69, maxZ: 3.51, padding: 0.06 },
+  { id: 'chair', minX: 2.38, maxX: 3.42, minZ: 3.45, maxZ: 4.55, padding: 0.06 },
+  { id: 'storage-shelf', minX: 4.22, maxX: 5.58, minZ: 1.33, maxZ: 2.27, padding: 0.06 },
 
-  // Hobby / dining platform
-  { id: 'hobby-platform', minX: 1.15, maxX: 4.60, minZ: 1.15, maxZ: 4.55, padding: 0.05 },
-
-  // Storage platform (moved/shrunk to avoid overlapping the hobby platform)
-  { id: 'storage-platform', minX: 4.78, maxX: 6.33, minZ: 0.475, maxZ: 2.03, padding: 0.05 },
-
-  // Parked personal items beside the sofa
-  { id: 'skateboard', minX: -5.72, maxX: -4.92, minZ: 2.00, maxZ: 3.15, padding: 0.04 },
-  { id: 'backpack', minX: -5.35, maxX: -4.30, minZ: 0.92, maxZ: 1.90, padding: 0.04 },
+  { id: 'skateboard', minX: -5.85, maxX: -5.45, minZ: -2.75, maxZ: -1.95, padding: 0.04 },
+  { id: 'backpack', minX: -5.65, maxX: -5.05, minZ: -2.05, maxZ: -1.25, padding: 0.04 },
 ];
 
 interface AnimState {
@@ -112,14 +137,7 @@ function useGroundShadowTexture(): THREE.Texture {
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
-    const gradient = ctx.createRadialGradient(
-      size / 2,
-      size / 2,
-      0,
-      size / 2,
-      size / 2,
-      size / 2,
-    );
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
     gradient.addColorStop(0, 'rgba(0,0,0,0.55)');
     gradient.addColorStop(0.55, 'rgba(0,0,0,0.32)');
     gradient.addColorStop(0.85, 'rgba(0,0,0,0.10)');
@@ -161,8 +179,6 @@ function canOccupy(x: number, z: number): boolean {
 }
 
 function moveWithCollisions(position: THREE.Vector3, dx: number, dz: number) {
-  /* Small substeps prevent fast diagonal movement from tunnelling through
-     furniture and make corners slide naturally instead of getting stuck. */
   const distance = Math.hypot(dx, dz);
   const steps = Math.max(1, Math.ceil(distance / 0.08));
   const stepX = dx / steps;
@@ -178,7 +194,6 @@ function moveWithCollisions(position: THREE.Vector3, dx: number, dz: number) {
       continue;
     }
 
-    // Slide along one axis when the diagonal corner is blocked.
     if (canOccupy(nextX, position.z)) position.x = nextX;
     if (canOccupy(position.x, nextZ)) position.z = nextZ;
   }
@@ -186,7 +201,7 @@ function moveWithCollisions(position: THREE.Vector3, dx: number, dz: number) {
 
 export const Player: React.FC<PlayerProps> = ({
   onInteractDesk,
-  initialPosition = [0, 0, 0],
+  initialPosition = [0, FLOOR_TOP, 0],
   speed = DEFAULT_SPEED,
   deskPosition = DEFAULT_DESK_POSITION,
   interactRadius = DEFAULT_INTERACT_RADIUS,
@@ -215,14 +230,7 @@ export const Player: React.FC<PlayerProps> = ({
       ...walkBackTextures,
       ...walkSideTextures,
     ],
-    [
-      idleFrontTextures,
-      idleSideTextures,
-      idleBackTextures,
-      walkFrontTextures,
-      walkBackTextures,
-      walkSideTextures,
-    ],
+    [idleFrontTextures, idleSideTextures, idleBackTextures, walkFrontTextures, walkBackTextures, walkSideTextures],
   );
 
   useEffect(() => {
@@ -242,14 +250,7 @@ export const Player: React.FC<PlayerProps> = ({
   const wasInteractPressed = useRef(false);
 
   const interactables = useMemo<Interactable[]>(
-    () => [
-      {
-        id: 'desk',
-        position: deskPosition,
-        radius: interactRadius,
-        onInteract: onInteractDesk,
-      },
-    ],
+    () => [{ id: 'desk', position: deskPosition, radius: interactRadius, onInteract: onInteractDesk }],
     [deskPosition, interactRadius, onInteractDesk],
   );
 
@@ -292,6 +293,11 @@ export const Player: React.FC<PlayerProps> = ({
       const stepZ = (moveZ / length) * speed * delta;
       moveWithCollisions(currentPos, stepX, stepZ);
     }
+
+    // Climb/descend: smoothly move toward the height of the zone the
+    // player's feet are currently over.
+    const targetY = getTargetHeight(currentPos.x, currentPos.z);
+    currentPos.y = THREE.MathUtils.damp(currentPos.y, targetY, HEIGHT_LERP_SPEED, delta);
 
     let newDirection = currentDirection.current;
     if (isMoving) {
@@ -344,10 +350,7 @@ export const Player: React.FC<PlayerProps> = ({
 
     if (interactJustPressed) {
       for (const target of interactables) {
-        const dist = Math.hypot(
-          currentPos.x - target.position[0],
-          currentPos.z - target.position[1],
-        );
+        const dist = Math.hypot(currentPos.x - target.position[0], currentPos.z - target.position[1]);
         if (dist < target.radius) {
           target.onInteract();
           break;
@@ -359,11 +362,7 @@ export const Player: React.FC<PlayerProps> = ({
   return (
     <group ref={groupRef} position={initialPosition}>
       {showGroundShadow && (
-        <mesh
-          position={[0, SHADOW_Y_OFFSET, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          renderOrder={1}
-        >
+        <mesh position={[0, SHADOW_Y_OFFSET, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
           <circleGeometry args={[0.40, 24]} />
           <meshBasicMaterial
             map={groundShadowTexture}
@@ -378,12 +377,7 @@ export const Player: React.FC<PlayerProps> = ({
         </mesh>
       )}
 
-      <mesh
-        ref={spriteRef}
-        position={[0, SPRITE_HEIGHT / 2, 0]}
-        castShadow={castShadow}
-        receiveShadow
-      >
+      <mesh ref={spriteRef} position={[0, SPRITE_HEIGHT / 2, 0]} castShadow={castShadow} receiveShadow>
         <planeGeometry args={[1.0, SPRITE_HEIGHT]} />
         <meshStandardMaterial
           ref={materialRef}
