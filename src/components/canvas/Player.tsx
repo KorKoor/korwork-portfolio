@@ -45,8 +45,8 @@ const walkSideFiles = [
 const walkSidePaths = walkSideFiles.map((f) => `${WALK_DIR}/Walk2/${f}.png`);
 
 const DEFAULT_SPEED = 2.4;
-const DEFAULT_DESK_POSITION: [number, number] = [0.35, -3.45];
-const DEFAULT_INTERACT_RADIUS = 1.2;
+const DEFAULT_DESK_POSITION: [number, number] = [1.72, -3.45];
+const DEFAULT_INTERACT_RADIUS = 1.25;
 const SPRITE_HEIGHT = 1.4;
 const SPRITE_BASE_ASPECT = 1.0 / SPRITE_HEIGHT;
 const PLAYER_RADIUS = 0.28;
@@ -55,22 +55,32 @@ const FRAME_DURATION_WALK_FRONT_BACK = 0.16;
 const FRAME_DURATION_WALK_SIDE = 0.07;
 
 /*
- * Collision layer for the first pass.
- *
- * These coordinates intentionally match the large physical pieces in Room.tsx.
- * Decorative sprites are not blockers yet; they can be added here progressively
- * without changing the movement system.
+ * Physical layout mirrors Room.tsx.
+ * Decorative atlas sprites remain walkable unless they sit on a physical
+ * piece of furniture. This keeps the room comfortable to explore.
  */
 const ROOM_COLLIDERS: RoomCollider[] = [
-  // Back wall / left wall
+  // Architecture
   { id: 'back-wall', minX: -4.65, maxX: 4.65, minZ: -4.72, maxZ: -4.45 },
   { id: 'left-wall', minX: -4.72, maxX: -4.45, minZ: -4.45, maxZ: 4.65 },
 
-  // Desk and its deep tabletop/body
-  { id: 'desk', minX: -2.15, maxX: 2.90, minZ: -4.28, maxZ: -3.00, padding: 0.08 },
+  // Bed: locked against the left/back corner
+  { id: 'bed', minX: -4.10, maxX: -0.40, minZ: -3.62, maxZ: -0.40, padding: 0.08 },
 
-  // Bed frame + mattress + headboard
-  { id: 'bed', minX: -4.32, maxX: -0.58, minZ: -3.28, maxZ: 0.12, padding: 0.08 },
+  // Desk: right side of the back wall, clear of the bed
+  { id: 'desk', minX: -0.62, maxX: 4.18, minZ: -4.28, maxZ: -3.00, padding: 0.08 },
+
+  // Sofa: front-left lounge area
+  { id: 'sofa', minX: -4.30, maxX: -0.60, minZ: 1.35, maxZ: 2.90, padding: 0.06 },
+
+  // Coffee table: center/front
+  { id: 'coffee-table', minX: -0.55, maxX: 1.65, minZ: 1.45, maxZ: 2.65, padding: 0.05 },
+
+  // Chair: in front of the coffee table
+  { id: 'chair', minX: 0.02, maxX: 1.28, minZ: 2.72, maxZ: 3.62, padding: 0.05 },
+
+  // Storage unit at the right/front corner
+  { id: 'storage', minX: 3.02, maxX: 4.28, minZ: 2.25, maxZ: 3.05, padding: 0.05 },
 ];
 
 interface AnimState {
@@ -109,8 +119,6 @@ function pointHitsCollider(x: number, z: number, collider: RoomCollider): boolea
 }
 
 function canOccupy(x: number, z: number): boolean {
-  // Hard room bounds. The front/right sides stay open visually, but the player
-  // should never walk outside the playable floor.
   const insideBounds =
     x >= -4.42 + PLAYER_RADIUS &&
     x <= 4.42 - PLAYER_RADIUS &&
@@ -118,7 +126,6 @@ function canOccupy(x: number, z: number): boolean {
     z <= 4.42 - PLAYER_RADIUS;
 
   if (!insideBounds) return false;
-
   return !ROOM_COLLIDERS.some((collider) => pointHitsCollider(x, z, collider));
 }
 
@@ -216,12 +223,9 @@ export const Player: React.FC<PlayerProps> = ({
       const length = Math.hypot(moveX, moveZ);
       const stepX = (moveX / length) * speed * delta;
       const stepZ = (moveZ / length) * speed * delta;
-
       const nextX = currentPos.x + stepX;
       const nextZ = currentPos.z + stepZ;
 
-      // Resolve each axis independently so the player slides along furniture
-      // instead of getting stuck on a diagonal corner.
       if (canOccupy(nextX, nextZ)) {
         currentPos.x = nextX;
         currentPos.z = nextZ;
@@ -276,7 +280,6 @@ export const Player: React.FC<PlayerProps> = ({
       spriteRef.current.scale.x = texAspect / SPRITE_BASE_ASPECT;
     }
 
-    // Billboard solo para el personaje; la posición física sigue siendo X/Z.
     spriteRef.current.quaternion.copy(state.camera.quaternion);
 
     const interactJustPressed = movement.interact && !wasInteractPressed.current;
