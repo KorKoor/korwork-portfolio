@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { useTexture } from '@react-three/drei';
+import { Billboard, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface RoomSpriteCrop {
@@ -8,6 +8,13 @@ interface RoomSpriteCrop {
   width: number;
   height: number;
 }
+
+const SPRITE_SHEETS = {
+  room: '/assets/Rooms/room-props.png',
+  house: '/assets/house/house-props.png',
+} as const;
+
+type RoomSpriteSheet = keyof typeof SPRITE_SHEETS;
 
 interface RoomSpriteProps {
   position: [number, number, number];
@@ -18,14 +25,21 @@ interface RoomSpriteProps {
   onClick?: () => void;
   billboard?: boolean;
 
+  /** Hoja de sprites de la que se recorta este prop. */
+  sheet?: RoomSpriteSheet;
+
   /** Elevación adicional para que los props puedan quedar realmente sobre muebles. */
   elevation?: number;
+
   /** Permite hacer que un sprite parezca ligeramente separado de la superficie. */
   lift?: number;
+
   /** Sombra del sprite sobre el suelo/mueble/pared. */
   castShadow?: boolean;
+
   /** Recibe sombras de otros objetos. */
   receiveShadow?: boolean;
+
   /** Intensidad de la integración con la iluminación 3D. */
   toneMapped?: boolean;
 }
@@ -39,63 +53,127 @@ export const RoomSprite = React.memo<RoomSpriteProps>(
     depthOffset = 0,
     onClick,
     billboard = false,
+    sheet = 'room',
     elevation = 0,
     lift = 0,
     castShadow = true,
     receiveShadow = true,
     toneMapped = true,
   }) => {
-    const texture = useTexture('/assets/Rooms/room-props.png');
+    const texture = useTexture(
+      SPRITE_SHEETS[sheet],
+    );
 
     const croppedTexture = useMemo(() => {
       const tex = texture.clone();
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
+
+      tex.magFilter =
+        THREE.NearestFilter;
+
+      tex.minFilter =
+        THREE.NearestFilter;
+
       tex.generateMipmaps = false;
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
-      tex.colorSpace = THREE.SRGBColorSpace;
+
+      tex.wrapS =
+        THREE.ClampToEdgeWrapping;
+
+      tex.wrapT =
+        THREE.ClampToEdgeWrapping;
+
+      tex.colorSpace =
+        THREE.SRGBColorSpace;
+
       tex.anisotropy = 1;
 
       if (!crop) {
         tex.repeat.set(1, 1);
+
         tex.offset.set(0, 0);
       } else {
-        const image = texture.image as { width: number; height: number };
-        const imageWidth = image.width;
-        const imageHeight = image.height;
+        const image =
+          texture.image as {
+            width: number;
+            height: number;
+          };
 
-        tex.repeat.set(crop.width / imageWidth, crop.height / imageHeight);
+        const imageWidth =
+          image.width;
+
+        const imageHeight =
+          image.height;
+
+        tex.repeat.set(
+          crop.width /
+            imageWidth,
+          crop.height /
+            imageHeight,
+        );
+
         tex.offset.set(
-          crop.x / imageWidth,
-          1 - (crop.y + crop.height) / imageHeight,
+          crop.x /
+            imageWidth,
+          1 -
+            (crop.y +
+              crop.height) /
+              imageHeight,
         );
       }
 
       tex.needsUpdate = true;
+
       return tex;
-    }, [texture, crop?.x, crop?.y, crop?.width, crop?.height]);
+    }, [
+      texture,
+      crop?.x,
+      crop?.y,
+      crop?.width,
+      crop?.height,
+    ]);
 
     useEffect(() => {
-      return () => croppedTexture.dispose();
+      return () => {
+        croppedTexture.dispose();
+      };
     }, [croppedTexture]);
 
-    const aspectRatio = crop ? crop.width / crop.height : 1;
-    const width = height * aspectRatio;
-    const finalY = position[1] + elevation + lift;
+    const aspectRatio = crop
+      ? crop.width / crop.height
+      : 1;
 
-    return (
+    const width =
+      height * aspectRatio;
+
+    const finalY =
+      position[1] +
+      elevation +
+      lift;
+
+    const sprite = (
       <mesh
-        position={[position[0], finalY, position[2] + depthOffset]}
+        position={[
+          position[0],
+          finalY,
+          position[2] +
+            depthOffset,
+        ]}
         rotation={rotation}
         castShadow={castShadow}
-        receiveShadow={receiveShadow}
+        receiveShadow={
+          receiveShadow
+        }
         onClick={(event) => {
           event.stopPropagation();
           onClick?.();
         }}
       >
-        <planeGeometry args={[width, height]} />
+        <planeGeometry
+          args={[
+            width,
+            height,
+          ]}
+        />
+
         <meshStandardMaterial
           map={croppedTexture}
           transparent
@@ -111,7 +189,29 @@ export const RoomSprite = React.memo<RoomSpriteProps>(
         />
       </mesh>
     );
+
+    if (billboard) {
+      return (
+        <Billboard
+          position={[
+            position[0],
+            finalY,
+            position[2] +
+              depthOffset,
+          ]}
+          follow
+          lockX={false}
+          lockY={false}
+          lockZ={false}
+        >
+          {sprite}
+        </Billboard>
+      );
+    }
+
+    return sprite;
   },
 );
 
-RoomSprite.displayName = 'RoomSprite';
+RoomSprite.displayName =
+  'RoomSprite';
