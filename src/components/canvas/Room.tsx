@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { Player } from './Player';
-import * as THREE from 'three';
+import type { ThreeEvent } from '@react-three/fiber';
 
 interface RoomSpriteProps {
   position: [number, number, number];
@@ -11,7 +11,7 @@ interface RoomSpriteProps {
 const RoomSprite: React.FC<RoomSpriteProps> = React.memo(
   ({ position, scale, onClick }) => {
     const handleClick = useCallback(
-      (event: THREE.Event) => {
+      (event: ThreeEvent<MouseEvent>) => {
         event.stopPropagation();
         onClick?.();
       },
@@ -24,29 +24,52 @@ const RoomSprite: React.FC<RoomSpriteProps> = React.memo(
         scale={scale}
         onClick={handleClick}
       >
-        {/* Cuerpo principal del escritorio */}
-        <mesh
-          castShadow
-          receiveShadow
-        >
+        {/* =====================================================
+            DESK BODY
+        ===================================================== */}
+
+        <mesh castShadow receiveShadow>
           <boxGeometry args={[1, 1, 0.4]} />
+
           <meshStandardMaterial
-            color="#8b5e3c"
-            roughness={0.8}
+            color="#6f472d"
+            roughness={0.86}
             metalness={0}
           />
         </mesh>
 
-        {/* Cubierta del escritorio */}
+        {/* =====================================================
+            DESK TOP
+        ===================================================== */}
+
         <mesh
           position={[0, 0.55, 0.2]}
           castShadow
           receiveShadow
         >
-          <boxGeometry args={[0.9, 0.15, 0.5]} />
+          <boxGeometry args={[0.94, 0.14, 0.52]} />
+
           <meshStandardMaterial
             color="#a67c52"
-            roughness={0.7}
+            roughness={0.72}
+            metalness={0}
+          />
+        </mesh>
+
+        {/* =====================================================
+            FRONT PANEL
+        ===================================================== */}
+
+        <mesh
+          position={[0, 0, 0.205]}
+          castShadow
+          receiveShadow
+        >
+          <boxGeometry args={[0.92, 0.82, 0.025]} />
+
+          <meshStandardMaterial
+            color="#57351f"
+            roughness={0.9}
             metalness={0}
           />
         </mesh>
@@ -69,35 +92,17 @@ export const Room: React.FC<RoomProps> = React.memo(
 
     return (
       <group position={[0, 0, 0]}>
+
         {/* =====================================================
-            ROOM LIGHTING
+            LOCAL ROOM LIGHT
+            Scene.tsx already handles global lighting.
         ===================================================== */}
 
-        <ambientLight
-          intensity={0.35}
-          color="#c7d8ff"
-        />
-
-        <directionalLight
-          position={[6, 10, 6]}
-          intensity={0.9}
-          color="#fff4df"
-          castShadow
-          shadow-mapSize={[1024, 1024]}
-          shadow-bias={-0.0002}
-          shadow-normalBias={0.02}
-          shadow-camera-left={-8}
-          shadow-camera-right={8}
-          shadow-camera-top={8}
-          shadow-camera-bottom={-8}
-        />
-
-        {/* Luz cálida central */}
         <pointLight
-          position={[0, 3, 0]}
-          intensity={1}
-          color="#ffa502"
-          distance={8}
+          position={[0, 3.2, -2.8]}
+          intensity={0.75}
+          color="#ffb45c"
+          distance={7}
           decay={2}
         />
 
@@ -106,15 +111,14 @@ export const Room: React.FC<RoomProps> = React.memo(
         ===================================================== */}
 
         <mesh
+          position={[0, -0.08, 0]}
           receiveShadow
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[0, 0, 0]}
         >
-          <planeGeometry args={[10, 10]} />
+          <boxGeometry args={[10, 0.16, 10]} />
 
           <meshStandardMaterial
-            color="#1e1b18"
-            roughness={0.92}
+            color="#171411"
+            roughness={0.94}
             metalness={0}
           />
         </mesh>
@@ -124,14 +128,14 @@ export const Room: React.FC<RoomProps> = React.memo(
         ===================================================== */}
 
         <mesh
-          receiveShadow
           position={[0, 2.5, -5]}
+          receiveShadow
         >
-          <planeGeometry args={[10, 5]} />
+          <boxGeometry args={[10, 5, 0.16]} />
 
           <meshStandardMaterial
-            color="#111827"
-            roughness={0.9}
+            color="#0d1421"
+            roughness={0.91}
             metalness={0}
           />
         </mesh>
@@ -141,15 +145,14 @@ export const Room: React.FC<RoomProps> = React.memo(
         ===================================================== */}
 
         <mesh
-          receiveShadow
-          rotation={[0, Math.PI / 2, 0]}
           position={[-5, 2.5, 0]}
+          receiveShadow
         >
-          <planeGeometry args={[10, 5]} />
+          <boxGeometry args={[0.16, 5, 10]} />
 
           <meshStandardMaterial
-            color="#1f2937"
-            roughness={0.9}
+            color="#172033"
+            roughness={0.92}
             metalness={0}
           />
         </mesh>
@@ -171,6 +174,7 @@ export const Room: React.FC<RoomProps> = React.memo(
         <Player
           onInteractDesk={onInteractDesk}
         />
+
       </group>
     );
   },
