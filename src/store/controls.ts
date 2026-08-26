@@ -6,6 +6,7 @@ interface KeyboardState {
   moveLeft: boolean;
   moveRight: boolean;
   interact: boolean;
+  sprint: boolean;
 }
 
 interface TouchState {
@@ -35,6 +36,7 @@ export const useControlsStore = create<ControlsStore>((set) => ({
     moveLeft: false,
     moveRight: false,
     interact: false,
+    sprint: false,
   },
   touch: {
     x: 0,

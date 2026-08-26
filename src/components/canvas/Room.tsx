@@ -99,10 +99,14 @@ const H = {
 
 const COLORS = {
   void: '#05070d',
-  floorBase: '#17131d',
-  floor: '#292331',
-  floorLight: '#45394a',
-  floorDark: '#1d1823',
+  // Piso de madera oscura (antes un plum/morado moody). La geometría
+  // de tablones (floorPattern/verticalSeams más abajo) no cambió,
+  // solo la paleta — así que sigue leyéndose como piso de madera con
+  // vetas, no como una alfombra plana de un solo color.
+  floorBase: '#140d08',
+  floor: '#33200f',
+  floorLight: '#5c3c22',
+  floorDark: '#180f07',
 
   wallBack: '#0a1222',
   wallSide: '#0e1729',
@@ -716,7 +720,7 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteract }) => {
       {floorPattern.map((i) => (
         <mesh key={`floor-plank-${i}`} position={[0, 0.16, -7.0 + i * 0.88]} receiveShadow>
           <boxGeometry args={[18.5, 0.045, 0.035]} />
-          <meshStandardMaterial color={i % 2 ? '#45394a' : '#382f40'} roughness={0.92} />
+          <meshStandardMaterial color={i % 2 ? '#4a2f1a' : '#2a1a0d'} roughness={0.88} />
         </mesh>
       ))}
 
@@ -728,10 +732,10 @@ export const Room: React.FC<RoomProps> = React.memo(({ onInteract }) => {
       ))}
 
       {/* Base elevada perimetral */}
-      <Block position={[0, 0.25, -7.5]} size={[19.0, 0.16, 0.28]} color="#4a4051" />
-      <Block position={[-9.0, 0.25, 0]} size={[0.28, 0.16, 15.0]} color="#4a4051" />
-      <Block position={[9.0, 0.25, 0]} size={[0.28, 0.16, 15.0]} color="#4a4051" />
-      <Block position={[0, 0.25, 7.5]} size={[19.0, 0.16, 0.28]} color="#4a4051" />
+      <Block position={[0, 0.25, -7.5]} size={[19.0, 0.16, 0.28]} color="#241609" />
+      <Block position={[-9.0, 0.25, 0]} size={[0.28, 0.16, 15.0]} color="#241609" />
+      <Block position={[9.0, 0.25, 0]} size={[0.28, 0.16, 15.0]} color="#241609" />
+      <Block position={[0, 0.25, 7.5]} size={[19.0, 0.16, 0.28]} color="#241609" />
 
       {/* Neón perimetral */}
       <Block position={[0, 0.34, -7.2]} size={[17.5, 0.035, 0.045]} color={COLORS.blueTrim} emissive="#4d8dff" emissiveIntensity={1.8} />

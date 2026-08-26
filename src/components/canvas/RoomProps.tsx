@@ -12,6 +12,8 @@ interface RoomSpriteCrop {
 const SPRITE_SHEETS = {
   room: '/assets/Rooms/room-props.png',
   house: '/assets/house/house-props.png',
+  ambient: '/assets/environment/ambient.png',
+  animals: '/assets/environment/animals.png',
 } as const;
 
 type RoomSpriteSheet = keyof typeof SPRITE_SHEETS;

@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Code,
   Sparkles,
@@ -11,11 +11,57 @@ import {
   Camera,
   Coffee,
   Hand,
+  HeartPulse,
+  Zap,
+  DoorOpen,
+  TreePine,
+  MapPin,
+  Wind,
+  Volume2,
+  VolumeX,
+  CloudSun,
+  CloudRain,
+  CloudLightning,
+  Cloud,
+  CloudFog,
+  Clock,
+  Compass,
 } from 'lucide-react';
-import { Scene } from './components/canvas/Scene';
+import { useProgress } from '@react-three/drei';
+import { Minimap, currentZoneLabel } from './components/ui/Minimap';
+import { LoadingScreen } from './components/ui/LoadingScreen';
+import { usePlayerHudStore } from './store/player';
+import { audio } from './audio/AudioEngine';
+import {
+  useAtmosphereStore,
+  clockLabel,
+  weatherLabel,
+  type WeatherKind,
+} from './world/atmosphere';
+import { Scene, type Location } from './components/canvas/Scene';
 import { TouchControls } from './components/ui/TouchControls';
 import { useIsTouchDevice } from './hooks/useIsTouchDevice';
-import type { InteractionZoneId } from './components/canvas/Player';
+import { useVitalsStore } from './store/vitals';
+import { useVehicleStore } from './store/vehicle';
+import { NPCS } from './components/canvas/world/NPCs';
+import { DebugOverlay } from './components/ui/DebugOverlay';
+import { recenterOrbit } from './store/cameraOrbit';
+import type {
+  ContentZoneId,
+  InteractionZoneId,
+  WorldZoneId,
+} from './components/canvas/Player';
+
+const CONTENT_ZONE_IDS: readonly ContentZoneId[] = [
+  'projects',
+  'skills',
+  'about',
+  'contact',
+];
+
+function isContentZone(id: InteractionZoneId): id is ContentZoneId {
+  return (CONTENT_ZONE_IDS as readonly string[]).includes(id);
+}
 
 /* =========================================================
    CONTENIDO — sacado de korwork.org, una sección por zona
@@ -104,7 +150,7 @@ function ProjectRow({
   );
 }
 
-const SECTIONS: Record<InteractionZoneId, Section> = {
+const SECTIONS: Record<ContentZoneId, Section> = {
   projects: {
     title: 'Proyectos',
     icon: <Code size={20} />,
@@ -506,14 +552,85 @@ function ControlsHint({ isTouch }: { isTouch: boolean }) {
         </span>
         interactuar
       </span>
+      <span style={{ opacity: 0.4 }}>·</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            padding: '2px 7px',
+            borderRadius: '5px',
+            background: 'rgba(110, 231, 183, 0.12)',
+            border: '1px solid rgba(110, 231, 183, 0.3)',
+            color: '#6ee7b7',
+            fontSize: '10.5px',
+            fontWeight: 700,
+          }}
+        >
+          Shift
+        </span>
+        correr
+      </span>
+      <span style={{ opacity: 0.4 }}>·</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            padding: '2px 7px',
+            borderRadius: '5px',
+            background: 'rgba(196, 181, 253, 0.12)',
+            border: '1px solid rgba(196, 181, 253, 0.3)',
+            color: '#c4b5fd',
+            fontSize: '10.5px',
+            fontWeight: 700,
+          }}
+        >
+          clic derecho
+        </span>
+        rotar cámara · rueda: zoom
+      </span>
     </div>
   );
+}
+
+const WORLD_ZONE_LABELS: Record<WorldZoneId, { title: string; accent: string }> = {
+  'enter-house': { title: 'Entrar a la casa', accent: '#fdba74' },
+  'sit-bench': { title: 'Sentarse a descansar', accent: '#6ee7b7' },
+  'ride-bike': { title: 'Subirse a la bici', accent: '#7dd3fc' },
+  'ride-skateboard': { title: 'Agarrar la patineta', accent: '#c4b5fd' },
+  'enter-cave': { title: 'Cueva de los murciélagos', accent: '#a78bfa' },
+  'fish-dock': { title: 'Pescar en el lago', accent: '#38bdf8' },
+  'cherry-lookout': { title: 'Mirador de cerezos', accent: '#f9a8d4' },
+  'flower-garden': { title: 'Jardín de flores', accent: '#fbbf24' },
+  'greet-fisherman': { title: 'Hablar con el pescador', accent: '#8fd0ff' },
+  'greet-hiker': { title: 'Hablar con la excursionista', accent: '#ffb0c8' },
+  'pet-dog': { title: 'Acariciar al perrito', accent: '#f9a8d4' },
+  'waterfall-cove': { title: 'La cascada escondida', accent: '#67e8f9' },
+  // Zona dentro del cuarto (junto a la cama) — comparte el tipo
+  // WorldZoneId porque cae en el mismo manejador genérico de abajo.
+  sleep: { title: 'Dormir un rato', accent: '#a5b4fc' },
+};
+
+// Un índice por NPC (no estado de React: no hace falta re-renderizar
+// nada por esto) para que las líneas roten en vez de repetir siempre
+// la primera.
+const greetingIndex: Record<string, number> = {};
+
+function pickGreeting(npcId: string): string {
+  const npc = NPCS.find((n) => n.id === npcId);
+  if (!npc) return '"..."';
+
+  const i = greetingIndex[npcId] ?? 0;
+  greetingIndex[npcId] = (i + 1) % npc.greetings.length;
+
+  return `💬 ${npc.greetings[i]}`;
 }
 
 function NearbyPrompt({ zone, isTouch }: { zone: InteractionZoneId | null; isTouch: boolean }) {
   if (!zone) return null;
 
-  const section = SECTIONS[zone];
+  const section = isContentZone(zone)
+    ? SECTIONS[zone]
+    : zone === 'exit-house'
+      ? { title: 'Salir al mundo exterior', accent: '#7dd3fc' }
+      : WORLD_ZONE_LABELS[zone as WorldZoneId];
 
   return (
     <div
@@ -562,24 +679,493 @@ function NearbyPrompt({ zone, isTouch }: { zone: InteractionZoneId | null; isTou
 }
 
 /* =========================================================
+   VITALS HUD — salud/stamina del mundo exterior
+   ========================================================= */
+
+function VitalsBar({
+  icon,
+  value,
+  max,
+  color,
+  glow,
+}: {
+  icon: ReactNode;
+  value: number;
+  max: number;
+  color: string;
+  glow: boolean;
+}) {
+  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+      <div style={{ color, display: 'flex' }}>{icon}</div>
+      <div
+        style={{
+          width: '108px',
+          height: '9px',
+          borderRadius: '999px',
+          background: 'rgba(255,255,255,0.08)',
+          overflow: 'hidden',
+          boxShadow: glow ? `0 0 8px ${color}88` : 'none',
+        }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: '100%',
+            background: color,
+            borderRadius: '999px',
+            transition: 'width 0.25s ease',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function VitalsHud() {
+  const health = useVitalsStore((s) => s.health);
+  const maxHealth = useVitalsStore((s) => s.maxHealth);
+  const stamina = useVitalsStore((s) => s.stamina);
+  const maxStamina = useVitalsStore((s) => s.maxStamina);
+  const isExhausted = useVitalsStore((s) => s.isExhausted);
+  const px = usePlayerHudStore((s) => s.x);
+  const pz = usePlayerHudStore((s) => s.z);
+  const boostLabel = useVehicleStore((s) => s.label);
+  const boostExpires = useVehicleStore((s) => s.expiresAt);
+
+  const boostActive = boostLabel !== null && Date.now() < boostExpires;
+  const zone = currentZoneLabel(px, pz);
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: '18px',
+        left: '18px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '9px',
+        padding: '12px',
+        borderRadius: '18px',
+        background: 'rgba(28, 22, 38, 0.58)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        boxShadow: '0 6px 22px rgba(0,0,0,0.35)',
+        zIndex: 10,
+        fontFamily: "'Nunito', 'Segoe UI', system-ui, sans-serif",
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <MapPin size={13} color="#94a3b8" />
+        <span
+          style={{
+            color: '#f1f5f9',
+            fontSize: '13px',
+            fontWeight: 800,
+            letterSpacing: '0.01em',
+          }}
+        >
+          {zone}
+        </span>
+      </div>
+
+      <AtmosphereHud />
+
+      <VitalsBar icon={<HeartPulse size={14} />} value={health} max={maxHealth} color="#fb7185" glow={health < maxHealth * 0.3} />
+      <VitalsBar icon={<Zap size={14} />} value={stamina} max={maxStamina} color={isExhausted ? '#f87171' : '#7dd3fc'} glow={isExhausted} />
+
+      <div
+        style={{
+          borderRadius: '12px',
+          overflow: 'hidden',
+          border: '1px solid rgba(255,255,255,0.12)',
+          lineHeight: 0,
+        }}
+      >
+        <Minimap />
+      </div>
+
+      {boostActive && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            color: '#7dd3fc',
+            fontSize: '11.5px',
+            fontWeight: 700,
+          }}
+        >
+          <Wind size={12} /> {boostLabel}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Toast({ text }: { text: string | null }) {
+  if (!text) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: '90px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        padding: '9px 18px',
+        borderRadius: '999px',
+        background: 'rgba(28, 22, 38, 0.75)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        color: '#f8fafc',
+        fontFamily: "'Nunito', 'Segoe UI', system-ui, sans-serif",
+        fontSize: '13.5px',
+        fontWeight: 600,
+        zIndex: 25,
+        animation: 'kw-pop-in 0.2s ease-out',
+        pointerEvents: 'none',
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
+/* =========================================================
+   RELOJ + CLIMA  (solo mundo abierto)
+   ========================================================= */
+
+const WEATHER_ICON: Record<WeatherKind, React.ReactNode> = {
+  clear: <CloudSun size={14} />,
+  cloudy: <Cloud size={14} />,
+  rain: <CloudRain size={14} />,
+  storm: <CloudLightning size={14} />,
+  fog: <CloudFog size={14} />,
+};
+
+function AtmosphereHud() {
+  // Se suscribe SOLO a valores ya redondeados/discretos: la hora
+  // cruda cambia 60 veces por segundo, pero la etiqueta "07:35" solo
+  // cambia cada varios segundos, así React re-renderiza casi nunca.
+  const label = useAtmosphereStore((s) => clockLabel(s.time));
+  const weather = useAtmosphereStore((s) => s.weather);
+  const isNight = useAtmosphereStore(
+    (s) => s.time < 0.24 || s.time > 0.79,
+  );
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        fontSize: '12px',
+        fontWeight: 700,
+        color: isNight ? '#a5b4fc' : '#e2e8f0',
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <Clock size={13} /> {label}
+      </span>
+      <span style={{ opacity: 0.35 }}>·</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        {WEATHER_ICON[weather]} {weatherLabel(weather)}
+      </span>
+    </div>
+  );
+}
+
+function SoundToggle() {
+  const [muted, setMuted] = useState(false);
+
+  return (
+    <button
+      type="button"
+      aria-label={muted ? 'Activar sonido' : 'Silenciar'}
+      onClick={() => {
+        const next = !muted;
+        setMuted(next);
+        audio.setMuted(next);
+        if (!next) audio.ui('hover');
+      }}
+      style={{
+        position: 'fixed',
+        top: '18px',
+        right: '150px',
+        width: '38px',
+        height: '38px',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(28, 22, 38, 0.55)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255,255,255,0.09)',
+        color: muted ? '#94a3b8' : '#7dd3fc',
+        cursor: 'pointer',
+        zIndex: 12,
+        transition: 'color 0.2s ease, transform 0.15s ease',
+      }}
+    >
+      {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+    </button>
+  );
+}
+
+function CameraRecenterButton() {
+  return (
+    <button
+      type="button"
+      aria-label="Centrar cámara"
+      title="Centrar cámara"
+      onClick={() => {
+        recenterOrbit();
+        audio.ui('hover');
+      }}
+      style={{
+        position: 'fixed',
+        top: '18px',
+        right: '196px',
+        width: '38px',
+        height: '38px',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(28, 22, 38, 0.55)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255,255,255,0.09)',
+        color: '#c4b5fd',
+        cursor: 'pointer',
+        zIndex: 12,
+        transition: 'color 0.2s ease, transform 0.15s ease',
+      }}
+    >
+      <Compass size={16} />
+    </button>
+  );
+}
+
+function LocationHint({ location }: { location: Location }) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '20px',
+        right: '18px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '8px 14px',
+        borderRadius: '999px',
+        background: 'rgba(28, 22, 38, 0.5)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(148, 163, 184, 0.18)',
+        color: '#cbd5e1',
+        fontFamily: "'Nunito', 'Segoe UI', system-ui, sans-serif",
+        fontSize: '12.5px',
+        fontWeight: 600,
+        zIndex: 10,
+      }}
+    >
+      {location === 'room' ? <TreePine size={13} /> : <DoorOpen size={13} />}
+      {location === 'room' ? 'Puerta al mundo exterior' : 'Vuelve a la casa'}
+    </div>
+  );
+}
+
+/* =========================================================
    APP
    ========================================================= */
 
 function App() {
-  const [openZone, setOpenZone] = useState<InteractionZoneId | null>(null);
+  const [location, setLocation] = useState<Location>('room');
+  const [openZone, setOpenZone] = useState<ContentZoneId | null>(null);
   const [nearbyZone, setNearbyZone] = useState<InteractionZoneId | null>(null);
+
+  // Player se remonta entero al cambiar de escena (key={location} en
+  // Scene.tsx) — su ref interna de "zona cercana" arranca en null, y
+  // si sigue en null no hay CAMBIO que dispare onNearbyZoneChange, así
+  // que el valor viejo (de la escena anterior) se quedaría pegado en
+  // el HUD sin este reset explícito.
+  useEffect(() => {
+    setNearbyZone(null);
+  }, [location]);
   const [coins, setCoins] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
   const visited = useRef<Set<InteractionZoneId>>(new Set());
   const isTouch = useIsTouchDevice();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
+  const showToast = (text: string) => {
+    setToast(text);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2400);
+  };
+
+  /* ---------------- transición entre escenas ----------------
+     Cambiar de escena ya no es un corte seco: se funde a negro, se
+     hace el cambio mientras la pantalla está tapada (que además es
+     cuando se cargan los assets nuevos), y se funde de vuelta. */
+  const [veil, setVeil] = useState(0);
+  const [transitionLabel, setTransitionLabel] = useState('Cargando');
+  const transitionTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => {
+      transitionTimers.current.forEach(clearTimeout);
+    };
+  }, []);
+
+  const travelTo = (next: Location, label: string) => {
+    if (next === location) return;
+
+    audio.ui(next === 'world' ? 'open' : 'close');
+    setTransitionLabel(label);
+    setVeil(1);
+
+    transitionTimers.current.push(
+      setTimeout(() => {
+        setLocation(next);
+        setOpenZone(null);
+      }, 420),
+    );
+
+    transitionTimers.current.push(
+      setTimeout(() => setVeil(0), 900),
+    );
+  };
+
+  const handleWorldZone = (zoneId: WorldZoneId) => {
+    switch (zoneId) {
+      case 'enter-house':
+        travelTo('room', 'Volviendo a casa');
+        break;
+      case 'enter-cave':
+        audio.ui('open');
+        showToast('🦇 La cueva de los murciélagos');
+        break;
+      case 'sit-bench':
+        useVitalsStore.getState().heal(18);
+        audio.ui('confirm');
+        showToast('🌿 Te sientas un rato — +18 de salud');
+        break;
+      case 'ride-bike':
+        useVehicleStore.getState().setBoost(1.8, 'bici', 8000);
+        audio.reward();
+        showToast('🚲 ¡A pedalear! +80% velocidad por 8s');
+        break;
+      case 'ride-skateboard':
+        useVehicleStore.getState().setBoost(1.45, 'patineta', 8000);
+        audio.reward();
+        showToast('🛹 ¡Rodando! +45% velocidad por 8s');
+        break;
+      case 'fish-dock': {
+        audio.splash();
+        const roll = Math.random();
+        if (roll < 0.5) {
+          setCoins((c) => c + 25);
+          transitionTimers.current.push(setTimeout(() => audio.reward(), 380));
+          showToast('🎣 ¡Pescaste un pez! +25 brews');
+        } else if (roll < 0.8) {
+          useVitalsStore.getState().heal(12);
+          transitionTimers.current.push(setTimeout(() => audio.ui('confirm'), 380));
+          showToast('🐟 Un pez pequeño — +12 de salud');
+        } else {
+          showToast('🫧 Se te escapó... vuelve a intentar');
+        }
+        break;
+      }
+      case 'cherry-lookout':
+        useVitalsStore.getState().heal(25);
+        useVitalsStore.getState().regenStamina(45);
+        audio.reward();
+        showToast('🌸 Un respiro bajo los cerezos — salud y energía');
+        break;
+      case 'flower-garden':
+        useVitalsStore.getState().regenStamina(60);
+        audio.ui('confirm');
+        showToast('🌻 El aroma te reanima — +energía');
+        break;
+      case 'greet-fisherman':
+        audio.ui('confirm');
+        showToast(pickGreeting('fisherman'));
+        break;
+      case 'greet-hiker':
+        audio.ui('confirm');
+        showToast(pickGreeting('hiker'));
+        break;
+      case 'pet-dog':
+        useVitalsStore.getState().heal(8);
+        audio.reward();
+        showToast('🐾 Le rascas las orejas — +8 de salud');
+        break;
+      case 'waterfall-cove':
+        useVitalsStore.getState().heal(15);
+        useVitalsStore.getState().regenStamina(40);
+        audio.ui('confirm');
+        showToast('🌊 El agua fresca te revitaliza — salud y energía');
+        break;
+      case 'sleep':
+        useVitalsStore.getState().regenStamina(100);
+        useVitalsStore.getState().heal(35);
+        audio.ui('confirm');
+        showToast('💤 Duermes un rato — energía y salud restauradas');
+        break;
+    }
+  };
 
   const handleInteract = (zoneId: InteractionZoneId) => {
-    setOpenZone(zoneId);
+    if (zoneId === 'exit-house') {
+      travelTo('world', 'Saliendo al mundo');
+    } else if (isContentZone(zoneId)) {
+      audio.ui('open');
+      setOpenZone(zoneId);
+    } else {
+      handleWorldZone(zoneId as WorldZoneId);
+    }
 
     if (!visited.current.has(zoneId)) {
       visited.current.add(zoneId);
       setCoins((c) => c + 50);
     }
   };
+
+  /* ---------------- carga y desbloqueo de audio ---------------- */
+
+  const { progress, active } = useProgress();
+  const [booted, setBooted] = useState(false);
+
+  useEffect(() => {
+    // La pantalla de carga no se va en cuanto los assets están: se
+    // espera un frame extra para que la primera imagen ya esté
+    // compuesta y no se vea un parpadeo.
+    if (!active && progress >= 100 && !booted) {
+      const id = setTimeout(() => setBooted(true), 500);
+      return () => clearTimeout(id);
+    }
+  }, [active, progress, booted]);
+
+  useEffect(() => {
+    // Política de autoplay: el audio no puede arrancar sin un gesto.
+    const unlock = () => audio.unlock();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   return (
     <main style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
@@ -594,18 +1180,58 @@ function App() {
             0%, 100% { transform: translateX(-50%) translateY(0); }
             50% { transform: translateX(-50%) translateY(-3px); }
           }
+          @keyframes kw-rise {
+            from { transform: translateY(0) scale(1); opacity: 0; }
+            12% { opacity: 0.85; }
+            to { transform: translateY(-105vh) scale(0.6); opacity: 0; }
+          }
         `}
       </style>
 
       <CoinBadge coins={coins} />
+      {location === 'world' && <VitalsHud />}
+      <SoundToggle />
+      <CameraRecenterButton />
+      <DebugOverlay location={location} />
       <ControlsHint isTouch={isTouch} />
       <NearbyPrompt zone={openZone ? null : nearbyZone} isTouch={isTouch} />
+      <Toast text={toast} />
+      <LocationHint location={location} />
 
-      <Scene onInteract={handleInteract} onNearbyZoneChange={setNearbyZone} />
+      <Scene
+        location={location}
+        onInteract={handleInteract}
+        onNearbyZoneChange={setNearbyZone}
+      />
 
       <TouchControls />
 
-      <InteractionModal section={openZone ? SECTIONS[openZone] : null} onClose={() => setOpenZone(null)} />
+      <InteractionModal
+        section={openZone ? SECTIONS[openZone] : null}
+        onClose={() => {
+          audio.ui('close');
+          setOpenZone(null);
+        }}
+      />
+
+      {/* Velo de transición entre escenas */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: '#080b0f',
+          opacity: veil,
+          transition: 'opacity 0.42s ease',
+          pointerEvents: 'none',
+          zIndex: 150,
+        }}
+      />
+
+      <LoadingScreen
+        progress={progress}
+        visible={!booted}
+        label={transitionLabel === 'Cargando' ? 'Cargando' : transitionLabel}
+      />
     </main>
   );
 }

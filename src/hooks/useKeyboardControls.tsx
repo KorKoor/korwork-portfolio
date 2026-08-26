@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
 import { useControlsStore } from '../store/controls';
 
-const KEY_MAP: Record<string, 'moveForward' | 'moveBackward' | 'moveLeft' | 'moveRight' | 'interact'> = {
+const KEY_MAP: Record<
+  string,
+  'moveForward' | 'moveBackward' | 'moveLeft' | 'moveRight' | 'interact' | 'sprint'
+> = {
   KeyW: 'moveForward',
   ArrowUp: 'moveForward',
   KeyS: 'moveBackward',
@@ -12,6 +15,8 @@ const KEY_MAP: Record<string, 'moveForward' | 'moveBackward' | 'moveLeft' | 'mov
   ArrowRight: 'moveRight',
   KeyE: 'interact',
   Space: 'interact',
+  ShiftLeft: 'sprint',
+  ShiftRight: 'sprint',
 };
 
 /**
