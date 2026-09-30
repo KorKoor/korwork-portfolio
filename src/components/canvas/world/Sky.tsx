@@ -7,6 +7,7 @@ import {
   getSunDirection,
   getNightFactor,
 } from '../../../world/atmosphere';
+import { useQualityTier } from '../../../hooks/useQualityTier';
 
 /* ============================================================
    CIELO Y LUZ SOLAR
@@ -75,6 +76,7 @@ const SKY_FRAG = /* glsl */ `
 
 export const Sky: React.FC = () => {
   const { scene } = useThree();
+  const tier = useQualityTier();
 
   const sunRef = useRef<THREE.DirectionalLight>(null);
   const fillRef = useRef<THREE.DirectionalLight>(null);
@@ -207,7 +209,7 @@ export const Sky: React.FC = () => {
       <directionalLight
         ref={sunRef}
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={tier === 'low' ? [1024, 1024] : [2048, 2048]}
         shadow-camera-left={-45}
         shadow-camera-right={45}
         shadow-camera-top={45}

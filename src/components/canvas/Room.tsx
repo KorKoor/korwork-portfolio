@@ -498,58 +498,6 @@ function WallShelf({
   );
 }
 
-/* ---------------- ALFOMBRA (capas con borde) ---------------- */
-
-function Rug({
-  position,
-  width,
-  depth,
-  color = COLORS.rug,
-  accent = COLORS.rugLight,
-}: {
-  position: [number, number, number];
-  width: number;
-  depth: number;
-  color?: string;
-  accent?: string;
-}) {
-  return (
-    <group position={position}>
-      <Block position={[0, 0.02, 0]} size={[width + 0.15, 0.04, depth + 0.15]} color="#0b0910" roughness={1} />
-      <Block position={[0, 0.04, 0]} size={[width, 0.02, depth]} color={color} roughness={1} />
-      <Block position={[0, 0.05, 0]} size={[width - 0.15, 0.01, depth - 0.15]} color={accent} roughness={1} />
-    </group>
-  );
-}
-
-/* ---------------- CÓMODA ---------------- */
-
-function Dresser({
-  position,
-  width = 1.2,
-  height = 0.95,
-  depth = 0.55,
-}: {
-  position: [number, number, number];
-  width?: number;
-  height?: number;
-  depth?: number;
-}) {
-  return (
-    <group position={position}>
-      <Block position={[0, height / 2, 0]} size={[width, height, depth]} color="#241719" roughness={0.9} />
-      <Block position={[0, height + 0.05, 0]} size={[width + 0.06, 0.06, depth + 0.06]} color={COLORS.wood} roughness={0.75} />
-      {[0.22, 0.48, 0.74].map((y, i) => (
-        <React.Fragment key={`drawer-${i}`}>
-          <Block position={[0, y * height, depth / 2 + 0.01]} size={[width - 0.14, 0.18, 0.03]} color="#382225" roughness={0.85} />
-          <Block position={[0, y * height, depth / 2 + 0.04]} size={[0.18, 0.03, 0.03]} color="#8f6a4b" metalness={0.25} roughness={0.45} />
-        </React.Fragment>
-      ))}
-      <Hitbox position={[0, height / 2, 0]} size={[width, height, depth]} />
-    </group>
-  );
-}
-
 /* ---------------- ARMARIO ---------------- */
 
 function Wardrobe({
@@ -609,43 +557,6 @@ function Bookcase({
       <RoomSprite position={[0.3, 1.75, 0.18]} crop={C.cameraLarge} height={0.35} rotation={FLOOR_ROTATION} />
 
       <Hitbox position={[0, height / 2, 0]} size={[width, height, depth]} />
-    </group>
-  );
-}
-
-/* ---------------- MESA AUXILIAR ---------------- */
-
-function SideTable({
-  position,
-  width = 0.6,
-  depth = 0.5,
-  height = 0.5,
-}: {
-  position: [number, number, number];
-  width?: number;
-  depth?: number;
-  height?: number;
-}) {
-  return (
-    <group position={position}>
-      <Block position={[0, height, 0]} size={[width, 0.1, depth]} color={COLORS.wood} roughness={0.75} />
-      <Leg offsetX={-width / 2 + 0.08} offsetZ={-depth / 2 + 0.08} h={height} thickness={0.08} />
-      <Leg offsetX={width / 2 - 0.08} offsetZ={-depth / 2 + 0.08} h={height} thickness={0.08} />
-      <Leg offsetX={-width / 2 + 0.08} offsetZ={depth / 2 - 0.08} h={height} thickness={0.08} />
-      <Leg offsetX={width / 2 - 0.08} offsetZ={depth / 2 - 0.08} h={height} thickness={0.08} />
-      <Hitbox position={[0, height / 2, 0]} size={[width, height, depth]} />
-    </group>
-  );
-}
-
-/* ---------------- PUF ---------------- */
-
-function Pouf({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) {
-  return (
-    <group position={position} scale={scale}>
-      <Block position={[0, 0.24, 0]} size={[0.6, 0.42, 0.6]} color="#3c2d4c" roughness={0.95} />
-      <Block position={[0, 0.46, 0]} size={[0.55, 0.06, 0.55]} color={COLORS.purpleDark} roughness={0.9} />
-      <Hitbox position={[0, 0.3, 0]} size={[0.65, 0.6, 0.65]} />
     </group>
   );
 }

@@ -575,6 +575,21 @@ export function getStaticObstacles(): Obstacle[] {
   // no hacia la poza (esa sí se puede pisar por la orilla).
   out.push({ x: WATERFALL_POS[0], z: WATERFALL_POS[1] - 2.4, radius: 4.6 });
 
+  // Peñascos que enmarcan la boca de la cueva (ver CaveEntrance.tsx)
+  // — antes nada bloqueaba aquí porque el interior completo vivía en
+  // el mundo abierto (se podía "atravesar" la roca caminando hacia
+  // el vacío donde antes estaba la cueva). Ahora que el interior es
+  // una escena aparte, estas rocas necesitan colisión real: sin
+  // esto el jugador podría caminar a través de ellas hacia terreno
+  // desnudo sin nada dentro.
+  const caveRocks: [number, number, number][] = [
+    [CAVE_CENTER[0] - 4.2, CAVE_CENTER[1] - 2.5, 1.55],
+    [CAVE_CENTER[0] + 4.4, CAVE_CENTER[1] - 2.2, 1.6],
+    [CAVE_CENTER[0] - 6.5, CAVE_CENTER[1] + 0.5, 1.55],
+    [CAVE_CENTER[0] + 6.6, CAVE_CENTER[1] + 0.8, 1.65],
+  ];
+  caveRocks.forEach(([x, z, radius]) => out.push({ x, z, radius }));
+
   cachedObstacles = out;
   return out;
 }

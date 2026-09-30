@@ -216,7 +216,13 @@ export const Clouds: React.FC = () => {
   });
 
   return (
-    <mesh geometry={geometry} frustumCulled={false} renderOrder={-50}>
+    // renderOrder alto a propósito: aunque las nubes viven muy arriba
+    // en Y (fuera del alcance real del jugador), ninguno de los dos
+    // escribe profundidad (depthWrite:false), así que sin esto el
+    // orden de dibujo —no la posición 3D— decidía quién tapa a quién,
+    // y el sprite del jugador (renderOrder hasta 20) se pintaba encima
+    // de la capa de nubes en vez de quedar debajo.
+    <mesh geometry={geometry} frustumCulled={false} renderOrder={21}>
       <primitive ref={materialRef} object={material} attach="material" />
     </mesh>
   );

@@ -42,9 +42,13 @@ export type WorldZoneId =
   // 'exit-house' ni una zona de contenido, así que cae aquí por tipo.
   | 'sleep';
 
-export type InteractionZoneId = RoomZoneId | WorldZoneId;
+// Única zona interactuable dentro de la cueva: el umbral de salida
+// de vuelta al mundo exterior (misma idea que 'exit-house').
+export type CaveZoneId = 'exit-cave';
 
-export type PlayerMode = 'room' | 'world';
+export type InteractionZoneId = RoomZoneId | WorldZoneId | CaveZoneId;
+
+export type PlayerMode = 'room' | 'world' | 'cave';
 
 interface Interactable {
   id: InteractionZoneId;
@@ -100,6 +104,13 @@ const WORLD_INTERACTION_ZONES: Interactable[] = [
   // de Waterfall.tsx (que está pegado a la pared), para pararse en la
   // orilla real.
   { id: 'waterfall-cove', position: [WATERFALL_POS[0], WATERFALL_POS[1] + 1.2], radius: 2.6 },
+];
+
+// El interior de la cueva vive en su propio espacio local (origen en
+// 0,0, no desplazado por CAVE_CENTER) — misma idea que el cuarto: la
+// única zona es el umbral por el que se entró, para volver al mundo.
+const CAVE_INTERACTION_ZONES: Interactable[] = [
+  { id: 'exit-cave', position: [0, 7], radius: 2.5 },
 ];
 
 interface RoomCollider {
@@ -299,6 +310,27 @@ const BETTER_ACTIONS_REFERENCE_PIXELS = 71;
 const BETTER_ACTIONS_UNITS_PER_PIXEL =
   SPRITE_HEIGHT / BETTER_ACTIONS_REFERENCE_PIXELS;
 
+// Dentro de Better-Actions.png, no TODAS las poses comparten ni
+// siquiera la escala de esa hoja — medido directamente contra el
+// canal alfa: dormir y bici sí se ven grandes, pero es porque el
+// recorte incluye la cama/bicicleta completa (props reales, más
+// altos que el personaje solo), así que esos SÍ están bien. Pero
+// pensando-agachado, acariciando al perro y la pose alterna de
+// espaldas con mochila no traen ningún prop de más y aun así salían
+// 15-19% más grandes que el resto del personaje — esas tres se
+// dibujaron a otra escala en su rincón de la hoja. Factor propio por
+// pose, calibrado contra una altura de referencia razonable (de pie
+// ≈ SPRITE_HEIGHT; en cuclillas ≈ la pose sentada de ACTIVITY_RUBIK,
+// ~1.15) en vez de contra el ancho/alto crudo del recorte.
+const THINK_BODY_UNITS_PER_PIXEL =
+  1.15 / THINK_BODY_CROPS[0].height;
+
+const PETDOG_UNITS_PER_PIXEL =
+  1.15 / PETDOG_CROPS[0].height;
+
+const BACKPACK_ALT_UNITS_PER_PIXEL =
+  SPRITE_HEIGHT / BACKPACK_ALT_CROPS[0].height;
+
 const PLAYER_RADIUS = 0.30;
 
 const FRAME_DURATION_IDLE = 0.50;
@@ -399,6 +431,27 @@ function getTargetHeight(
   }
 
   return LOWER_FLOOR_Y;
+}
+
+// Piso de la cueva: un solo nivel plano (sin escaleras como el
+// cuarto), así que no hace falta más que devolver una constante.
+function getCaveTargetHeight(): number {
+  return 0;
+}
+
+/** Altura de referencia del "piso" según el modo — un solo punto de
+ * entrada para los pocos lugares (posición Y del jugador, anillo de
+ * pulso al interactuar) que necesitan saber a qué altura está el
+ * suelo bajo un punto (x,z), sin repetir el ternario mode==='world'
+ * ? ... : mode==='cave' ? ... : ... en cada uno. */
+function getGroundHeight(
+  mode: PlayerMode,
+  x: number,
+  z: number,
+): number {
+  if (mode === 'world') return getWorldTerrainHeight(x, z);
+  if (mode === 'cave') return getCaveTargetHeight();
+  return getTargetHeight(x, z);
 }
 
 const ROOM_COLLIDERS: RoomCollider[] = [
@@ -753,6 +806,30 @@ function canOccupyRoom(
   );
 }
 
+// Paredes del fondo de la cueva (ver CaveInterior.tsx: mismas cajas,
+// mismas posiciones locales) — el resto de la cueva (cristales,
+// estalagmitas, rocalla) es decorativo y no bloquea, mismo criterio
+// que arbustos/pasto en el mundo exterior.
+const CAVE_COLLIDERS: RoomCollider[] = [
+  { id: 'cave-back-wall', minX: -6.5, maxX: 6.5, minZ: -8.8, maxZ: -7.2, padding: 0.1 },
+  { id: 'cave-back-wall-left', minX: -7.3, maxX: -5.1, minZ: -8.5, maxZ: -3.5, padding: 0.1 },
+  { id: 'cave-back-wall-right', minX: 5.1, maxX: 7.3, minZ: -8.5, maxZ: -3.5, padding: 0.1 },
+];
+
+// Radio del piso circular de la cueva (ver CaveInterior.tsx: radio 9).
+const CAVE_FLOOR_RADIUS = 9;
+
+function canOccupyCave(
+  x: number,
+  z: number,
+): boolean {
+  if (Math.hypot(x, z) > CAVE_FLOOR_RADIUS - PLAYER_RADIUS) {
+    return false;
+  }
+
+  return !CAVE_COLLIDERS.some((collider) => circleHitsAABB(x, z, collider));
+}
+
 // El mundo exterior no tiene colliders finos por objeto (los props
 // de EnvironmentDecor son decorativos) — solo el límite del mapa.
 // Mantiene el sistema simple y evita tener que sincronizar cajas de
@@ -1011,7 +1088,9 @@ export const Player: React.FC<PlayerProps> = ({
   const activeZones =
     mode === 'world'
       ? WORLD_INTERACTION_ZONES
-      : ROOM_INTERACTION_ZONES;
+      : mode === 'cave'
+        ? CAVE_INTERACTION_ZONES
+        : ROOM_INTERACTION_ZONES;
 
   const groundShadowTexture =
     useGroundShadowTexture();
@@ -1054,7 +1133,7 @@ export const Player: React.FC<PlayerProps> = ({
   const backpackAltFrames = useCroppedFrames(
     betterActionsTexture,
     BACKPACK_ALT_CROPS,
-    BETTER_ACTIONS_UNITS_PER_PIXEL,
+    BACKPACK_ALT_UNITS_PER_PIXEL,
   );
 
   // De espaldas alterna entre la pose de la hoja original y esta
@@ -1067,7 +1146,7 @@ export const Player: React.FC<PlayerProps> = ({
   const thinkBodyFrames = useCroppedFrames(
     betterActionsTexture,
     THINK_BODY_CROPS,
-    BETTER_ACTIONS_UNITS_PER_PIXEL,
+    THINK_BODY_UNITS_PER_PIXEL,
   );
 
   const sitFrames = useCroppedFrames(
@@ -1079,7 +1158,7 @@ export const Player: React.FC<PlayerProps> = ({
   const petDogFrames = useCroppedFrames(
     betterActionsTexture,
     PETDOG_CROPS,
-    BETTER_ACTIONS_UNITS_PER_PIXEL,
+    PETDOG_UNITS_PER_PIXEL,
   );
 
   const sleepFrames = useCroppedFrames(
@@ -1663,21 +1742,16 @@ export const Player: React.FC<PlayerProps> = ({
             position,
             stepX,
             stepZ,
-            canOccupyRoom,
+            mode === 'cave' ? canOccupyCave : canOccupyRoom,
           );
         }
       }
 
-      const targetHeight =
-        mode === 'world'
-          ? getWorldTerrainHeight(
-              position.x,
-              position.z,
-            )
-          : getTargetHeight(
-              position.x,
-              position.z,
-            );
+      const targetHeight = getGroundHeight(
+        mode,
+        position.x,
+        position.z,
+      );
 
       position.y =
         THREE.MathUtils.damp(
@@ -1920,7 +1994,9 @@ export const Player: React.FC<PlayerProps> = ({
                 WATER_LEVEL + 0.3
                 ? 'water'
                 : 'grass'
-              : 'wood';
+              : mode === 'cave'
+                ? 'stone'
+                : 'wood';
 
           audio.footstep(surface);
           onFootstep?.(position.x, position.y, position.z);
@@ -2171,13 +2247,10 @@ export const Player: React.FC<PlayerProps> = ({
 
             Math.max(
               0.05,
-              (mode === 'world'
-                ? getWorldTerrainHeight
-                : getTargetHeight)(
-                lastInteractTarget
-                  .current[0],
-                lastInteractTarget
-                  .current[1],
+              getGroundHeight(
+                mode,
+                lastInteractTarget.current[0],
+                lastInteractTarget.current[1],
               ) -
                 position.y +
                 0.06,
@@ -2300,10 +2373,16 @@ export const Player: React.FC<PlayerProps> = ({
         </mesh>
       </mesh>
 
-      {mode === 'world' && (
+      {/* Halo de lectura bajo los pies — el mundo abierto de noche y
+          la cueva (siempre oscura) son los dos casos donde un poco
+          de luz propia ayuda a no perderse contra el fondo; el
+          cuarto ya está bien iluminado y no lo necesita. Tinte cálido
+          afuera (a juego con faroles/luciérnagas), frío adentro (a
+          juego con los cristales de CaveInterior). */}
+      {(mode === 'world' || mode === 'cave') && (
         <Glow
           position={[0, 0.09, 0]}
-          color="#ffe6ac"
+          color={mode === 'cave' ? '#c4b5fd' : '#ffe6ac'}
           size={1.15}
           nightOnly={0}
           flicker={0}

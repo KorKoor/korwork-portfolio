@@ -11,6 +11,7 @@ import { CameraOrbitControls } from './CameraOrbitControls';
 import { WORLD_HALF_SIZE, getWorldTerrainHeight } from '../../world/terrain';
 import { usePlayerHudStore } from '../../store/player';
 import { orbitState, ORBIT_PITCH_MIN, ORBIT_PITCH_MAX } from '../../store/cameraOrbit';
+import { useQualityTier } from '../../hooks/useQualityTier';
 
 /* =========================================================
    INTERFAZ PRINCIPAL DE LA ESCENA
@@ -325,6 +326,7 @@ export const Scene: React.FC<SceneProps> = ({
   onNearbyZoneChange,
 }) => {
   const spawn = location === 'world' ? WORLD_SPAWN : ROOM_SPAWN;
+  const tier = useQualityTier();
 
   const [playerPosition, setPlayerPosition] =
     useState<[number, number, number]>(spawn);
@@ -379,8 +381,8 @@ export const Scene: React.FC<SceneProps> = ({
     >
       <Canvas
         orthographic
-        shadows="soft"
-        dpr={[1, 2]}
+        shadows={tier === 'low' ? true : 'soft'}
+        dpr={tier === 'low' ? 1 : [1, 2]}
         camera={{
           // Posición/zoom iniciales — CameraRig los recalcula ya en
           // el primer frame, pero conviene que el valor de arranque
@@ -398,7 +400,12 @@ export const Scene: React.FC<SceneProps> = ({
           far: 1000,
         }}
         gl={{
-          antialias: true,
+          // El anti-aliasing real lo da el multisampling del
+          // EffectComposer de más abajo — pedirlo también aquí hace
+          // que WebGL reserve un framebuffer MSAA que el composer
+          // nunca llega a usar (renderiza a su propio render target),
+          // puro desperdicio de memoria y ancho de banda de GPU.
+          antialias: false,
           alpha: true,
           powerPreference: 'high-performance',
         }}
@@ -437,7 +444,7 @@ export const Scene: React.FC<SceneProps> = ({
               intensity={1.8}
               color="#fffaf0"
               castShadow
-              shadow-mapSize={[4096, 4096]}
+              shadow-mapSize={tier === 'low' ? [1536, 1536] : [4096, 4096]}
               shadow-bias={-0.00012}
               shadow-normalBias={0.02}
               shadow-camera-left={-22}
@@ -470,7 +477,7 @@ export const Scene: React.FC<SceneProps> = ({
               scale={24}
               blur={1.1}
               far={11}
-              resolution={2048}
+              resolution={tier === 'low' ? 1024 : 2048}
               color="#000000"
             />
           </>
@@ -538,7 +545,7 @@ export const Scene: React.FC<SceneProps> = ({
           minPitchOffset={location === 'room' ? -0.12 : ORBIT_PITCH_MIN}
         />
 
-        <EffectComposer enableNormalPass={false} multisampling={4}>
+        <EffectComposer enableNormalPass={false} multisampling={tier === 'low' ? 0 : 4}>
           <Bloom
             mipmapBlur
             intensity={0.28}

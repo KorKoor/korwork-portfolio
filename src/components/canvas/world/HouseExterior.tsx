@@ -249,9 +249,14 @@ export const HouseExterior: React.FC = React.memo(() => {
 
       {/* Techo a dos aguas. */}
       <group position={[0, WALL_HEIGHT, (DEPTH_N + DEPTH_S) / 2]}>
+        {/* El signo de la rotación decide de qué lado queda la cumbrera:
+            con +0.62 aquí el extremo cercano al centro (la cumbrera)
+            terminaba MÁS BAJO que el extremo pegado a la pared — un
+            techo con el pico hacia abajo. Invertido a -0.62/+0.62 el
+            lado que sube es el del centro, como debe ser. */}
         <mesh
           position={[0, 0.75, -1.15]}
-          rotation={[0.62, 0, 0]}
+          rotation={[-0.62, 0, 0]}
           castShadow
         >
           <boxGeometry
@@ -266,7 +271,7 @@ export const HouseExterior: React.FC = React.memo(() => {
         </mesh>
         <mesh
           position={[0, 0.75, 1.15]}
-          rotation={[-0.62, 0, 0]}
+          rotation={[0.62, 0, 0]}
           castShadow
         >
           <boxGeometry
