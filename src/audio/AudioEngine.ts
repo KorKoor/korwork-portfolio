@@ -192,15 +192,26 @@ class AudioEngine {
       lfo.type = 'square';
       lfo.frequency.value = 11;
 
-      const lfoGain = ctx.createGain();
-      lfoGain.gain.value = 0.5;
-      lfo.connect(lfoGain);
+      // El LFO modula la AMPLITUD (tremolo, 0.6–1.4) en una etapa
+      // aparte — antes se sumaba directo al gain final, que debía
+      // llegar casi a 0 de día: un AudioParam SUMA las señales
+      // conectadas, así que el LFO (±0.5) dominaba sobre el volumen
+      // real (máx 0.035) y el tono de 4300Hz sonaba fuerte y
+      // constante sin importar hora/clima — el "pitido intenso todo
+      // el rato".
+      const tremolo = ctx.createGain();
+      tremolo.gain.value = 1;
+
+      const lfoDepth = ctx.createGain();
+      lfoDepth.gain.value = 0.4;
+      lfo.connect(lfoDepth);
+      lfoDepth.connect(tremolo.gain);
 
       const gain = ctx.createGain();
       gain.gain.value = 0;
-      lfoGain.connect(gain.gain);
 
-      osc.connect(gain);
+      osc.connect(tremolo);
+      tremolo.connect(gain);
       gain.connect(bus);
       osc.start();
       lfo.start();
